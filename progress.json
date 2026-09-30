@@ -1,0 +1,16 @@
+{
+  "students": {
+    "Юний Чемпіон": {
+      "avatar": "🚀",
+      "stars": 0,
+      "score": 0,
+      "total_typed": 0,
+      "correct_typed": 0,
+      "best_arcade_score": 0,
+      "words_typed": 0,
+      "achievements": []
+    }
+  },
+  "last_student": "Юний Чемпіон",
+  "sound_enabled": true
+}

@@ -1,0 +1,26 @@
+{
+  "students": {
+    "Юний Чемпіон": {
+      "avatar": "🚀",
+      "stars": 39,
+      "score": 1950,
+      "total_typed": 39,
+      "correct_typed": 39,
+      "best_arcade_score": 0,
+      "words_typed": 0,
+      "achievements": []
+    },
+    "Макар": {
+      "avatar": "🐼",
+      "stars": 50,
+      "score": 248,
+      "total_typed": 174,
+      "correct_typed": 111,
+      "best_arcade_score": 0,
+      "words_typed": 16,
+      "achievements": []
+    }
+  },
+  "last_student": "Макар",
+  "sound_enabled": true
+}
