@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 Клавіатурний тренажер для дітей "Спритні пальчики" / "Smart Fingers"
-Розроблено спеціально для легкого навчання сліпому та швидкому друку дітьми.
+Розроблено спеціально для легкого навчання сліпому друку та гарячим клавішам.
 Повністю автономний застосунок: працює на будь-якому ПК без встановленого Python.
 """
 
 import sys
 import os
 import json
-import time
 import random
 import threading
 import queue
@@ -32,7 +31,6 @@ except Exception:
 # Шляхи до файлів
 def get_base_dir():
     if getattr(sys, 'frozen', False):
-        # Якщо скомпільовано в .exe
         return os.path.dirname(os.path.abspath(sys.argv[0]))
     return os.path.dirname(os.path.abspath(__file__))
 
@@ -64,6 +62,8 @@ class SoundManager:
                     winsound.Beep(523, 50)
                     winsound.Beep(659, 50)
                     winsound.Beep(784, 80)
+                elif sound_type == "hotkey_down":
+                    winsound.Beep(440, 40)
                 elif sound_type == "complete":
                     winsound.Beep(523, 60)
                     winsound.Beep(659, 60)
@@ -117,13 +117,241 @@ class ProgressManager:
                 "correct_typed": 0,
                 "best_arcade_score": 0,
                 "words_typed": 0,
+                "hotkeys_mastered": 0,
                 "achievements": []
             }
             self.save()
         return self.data["students"][name]
 
 
-# --- Словники та навчальні набори ---
+# --- Словники, навчальні набори та каталог гарячих клавіш ---
+HOTKEYS_DATA = {
+    "UA": [
+        {
+            "id": "ctrl_c",
+            "keys": ["Ctrl", "C"],
+            "keycodes": [67],
+            "title": "Копіювати (запам'ятати)",
+            "emoji": "📋",
+            "desc": "Копіює виділений текст, картинку чи файл у пам'ять (буфер обміну).",
+            "finger": "Ліва рука: мізинець на [Ctrl], вказівний на [C] (або укр. С)",
+            "quiz_question": "Яка комбінація копіює виділений текст у пам'ять комп'ютера?",
+            "sample_text": "🐱 Веселий Котик 🌟"
+        },
+        {
+            "id": "ctrl_v",
+            "keys": ["Ctrl", "V"],
+            "keycodes": [86],
+            "title": "Вставити (розмістити скопійоване)",
+            "emoji": "📥",
+            "desc": "Вставляє скопійований раніше текст чи картинку в нове місце.",
+            "finger": "Ліва рука: мізинець на [Ctrl], вказівний на [V] (або укр. М)",
+            "quiz_question": "Яка комбінація вставляє раніше скопійований текст?",
+            "sample_text": "🚀 Космічна Ракета 🌠"
+        },
+        {
+            "id": "ctrl_z",
+            "keys": ["Ctrl", "Z"],
+            "keycodes": [90],
+            "title": "Чарівне скасування (Undo)",
+            "emoji": "↩️",
+            "desc": "Виправляє будь-яку випадкову помилку! Повертає дію назад.",
+            "finger": "Ліва рука: мізинець на [Ctrl], безіменний на [Z] (або укр. Я)",
+            "quiz_question": "Випадково видалили текст? Яка чарівна комбінація поверне все назад?",
+            "sample_text": "🎨 Чарівний малюнок"
+        },
+        {
+            "id": "ctrl_y",
+            "keys": ["Ctrl", "Y"],
+            "keycodes": [89],
+            "title": "Повторити дію (Redo)",
+            "emoji": "🔁",
+            "desc": "Повторює дію, якщо ви скасували її занадто далеко.",
+            "finger": "Ліва рука: мізинець на [Ctrl], права: вказівний на [Y] (укр. Н)",
+            "quiz_question": "Яка комбінація повторює щойно скасовану дію?",
+            "sample_text": "⚡ Швидка блискавка"
+        },
+        {
+            "id": "ctrl_s",
+            "keys": ["Ctrl", "S"],
+            "keycodes": [83],
+            "title": "Зберегти файл",
+            "emoji": "💾",
+            "desc": "Зберігає документ або малюнок, щоб нічого не загубилося.",
+            "finger": "Ліва рука: мізинець на [Ctrl], безіменний на [S] (або укр. І)",
+            "quiz_question": "Яка комбінація зберігає файл, малюнок або гру?",
+            "sample_text": "📚 Моя цікава казка"
+        },
+        {
+            "id": "ctrl_a",
+            "keys": ["Ctrl", "A"],
+            "keycodes": [65],
+            "title": "Виділити все одразу",
+            "emoji": "✨",
+            "desc": "Виділяє весь текст на сторінці або всі файли в папці за одну секунду.",
+            "finger": "Ліва рука: мізинець на [Ctrl], безіменний на [A] (або укр. Ф)",
+            "quiz_question": "Як виділити весь текст або всі файли одразу?",
+            "sample_text": "🌟 Усі слова на сторінці разом"
+        },
+        {
+            "id": "ctrl_f",
+            "keys": ["Ctrl", "F"],
+            "keycodes": [70],
+            "title": "Швидкий пошук",
+            "emoji": "🔍",
+            "desc": "Відкриває віконце пошуку слова на сторінці, у книзі чи в браузері.",
+            "finger": "Ліва рука: мізинець на [Ctrl], вказівний на [F] (або укр. А)",
+            "quiz_question": "Як швидко знайти потрібне слово у великому тексті чи в інтернеті?",
+            "sample_text": "🔎 Шукаю секретний скарб"
+        },
+        {
+            "id": "ctrl_x",
+            "keys": ["Ctrl", "X"],
+            "keycodes": [88],
+            "title": "Вирізати (Cut)",
+            "emoji": "✂️",
+            "desc": "Забирає виділений фрагмент, щоб перенести його в інше місце.",
+            "finger": "Ліва рука: мізинець на [Ctrl], середній на [X] (або укр. Ч)",
+            "quiz_question": "Як вирізати текст чи малюнок для перенесення в інше місце?",
+            "sample_text": "✂️ Відрізаний шматочок"
+        },
+        {
+            "id": "win_d",
+            "keys": ["Win", "D"],
+            "keycodes": [68],
+            "title": "Показати робочий стіл",
+            "emoji": "🖥️",
+            "desc": "Миттєво згортає всі вікна та показує чистий робочий стіл.",
+            "finger": "Ліва рука: великий палець на [Win], середній на [D] (або укр. В)",
+            "quiz_question": "Як в 1 клік згорнути всі вікна та відкрити робочий стіл?",
+            "sample_text": "🖥️ Мій чистий екран"
+        },
+        {
+            "id": "alt_tab",
+            "keys": ["Alt", "Tab"],
+            "keycodes": [9],
+            "title": "Швидке перемикання вікон",
+            "emoji": "🔀",
+            "desc": "Дозволяє миттєво перемикатися між відкритими програмами.",
+            "finger": "Ліва рука: великий на [Alt], мізинець на [Tab]",
+            "quiz_question": "Яка комбінація дозволяє швидко перемикатися між відкритими вікнами?",
+            "sample_text": "🔀 Перехід до іншої гри"
+        },
+        {
+            "id": "ctrl_t",
+            "keys": ["Ctrl", "T"],
+            "keycodes": [84],
+            "title": "Нова вкладка в інтернеті",
+            "emoji": "🌐",
+            "desc": "Відкриває нову чисту вкладку у браузері для пошуку чогось нового.",
+            "finger": "Ліва рука: мізинець на [Ctrl], вказівний на [T] (або укр. Е)",
+            "quiz_question": "Як у браузері відкрити нову вкладку для пошуку?",
+            "sample_text": "🌐 Нова сторінка в інтернеті"
+        },
+        {
+            "id": "ctrl_w",
+            "keys": ["Ctrl", "W"],
+            "keycodes": [87],
+            "title": "Закрити поточну вкладку",
+            "emoji": "✖️",
+            "desc": "Закриває одну непотрібну вкладку у браузері.",
+            "finger": "Ліва рука: мізинець на [Ctrl], безіменний на [W] (або укр. Ц)",
+            "quiz_question": "Як швидко закрити поточну вкладку в інтернеті?",
+            "sample_text": "✖️ Непотрібна вкладка"
+        }
+    ],
+    "EN": [
+        {
+            "id": "ctrl_c",
+            "keys": ["Ctrl", "C"],
+            "keycodes": [67],
+            "title": "Copy (Copy to clipboard)",
+            "emoji": "📋",
+            "desc": "Copies selected text, image or file into computer memory.",
+            "finger": "Left hand: pinky on [Ctrl], index on [C]",
+            "quiz_question": "Which shortcut copies selected text to clipboard?",
+            "sample_text": "🐱 Cute Kitty Cat 🌟"
+        },
+        {
+            "id": "ctrl_v",
+            "keys": ["Ctrl", "V"],
+            "keycodes": [86],
+            "title": "Paste (Paste copied item)",
+            "emoji": "📥",
+            "desc": "Pastes the copied text or picture into the target place.",
+            "finger": "Left hand: pinky on [Ctrl], index on [V]",
+            "quiz_question": "Which shortcut pastes previously copied text?",
+            "sample_text": "🚀 Space Rocket 🌠"
+        },
+        {
+            "id": "ctrl_z",
+            "keys": ["Ctrl", "Z"],
+            "keycodes": [90],
+            "title": "Magic Undo",
+            "emoji": "↩️",
+            "desc": "Fixes mistakes by undoing your last action!",
+            "finger": "Left hand: pinky on [Ctrl], ring on [Z]",
+            "quiz_question": "Accidentally deleted something? Which magic shortcut brings it back?",
+            "sample_text": "🎨 Magic art piece"
+        },
+        {
+            "id": "ctrl_s",
+            "keys": ["Ctrl", "S"],
+            "keycodes": [83],
+            "title": "Save file",
+            "emoji": "💾",
+            "desc": "Saves your document or drawing so nothing is lost.",
+            "finger": "Left hand: pinky on [Ctrl], ring on [S]",
+            "quiz_question": "Which shortcut saves your document or artwork?",
+            "sample_text": "📚 My fairy tale"
+        },
+        {
+            "id": "ctrl_a",
+            "keys": ["Ctrl", "A"],
+            "keycodes": [65],
+            "title": "Select All",
+            "emoji": "✨",
+            "desc": "Selects all text or files in a folder instantly.",
+            "finger": "Left hand: pinky on [Ctrl], ring on [A]",
+            "quiz_question": "How do you select all text or files at once?",
+            "sample_text": "🌟 All words on the page"
+        },
+        {
+            "id": "ctrl_f",
+            "keys": ["Ctrl", "F"],
+            "keycodes": [70],
+            "title": "Quick Find",
+            "emoji": "🔍",
+            "desc": "Opens search box to find any word on web page or doc.",
+            "finger": "Left hand: pinky on [Ctrl], index on [F]",
+            "quiz_question": "Which shortcut helps you find words quickly?",
+            "sample_text": "🔎 Finding treasure"
+        },
+        {
+            "id": "win_d",
+            "keys": ["Win", "D"],
+            "keycodes": [68],
+            "title": "Show Desktop",
+            "emoji": "🖥️",
+            "desc": "Minimizes all windows and shows your clean desktop.",
+            "finger": "Left hand: thumb on [Win], middle on [D]",
+            "quiz_question": "How to minimize all windows and show desktop in 1 click?",
+            "sample_text": "🖥️ Desktop view"
+        },
+        {
+            "id": "alt_tab",
+            "keys": ["Alt", "Tab"],
+            "keycodes": [9],
+            "title": "Switch Windows",
+            "emoji": "🔀",
+            "desc": "Instantly switch between your opened applications.",
+            "finger": "Left hand: thumb on [Alt], pinky on [Tab]",
+            "quiz_question": "Which shortcut switches between open application windows?",
+            "sample_text": "🔀 Switch to next app"
+        }
+    ]
+}
+
 CONTENT = {
     "UA": {
         "levels": [
@@ -230,7 +458,7 @@ CONTENT = {
     }
 }
 
-# Розкладки клавіатури з координатами та зонами пальців
+# Кольори пальців
 FINGER_COLORS = {
     "LP": "#FFB3BA",  # Лівий мізинець (Pink)
     "LR": "#FFDFBA",  # Лівий безіменний (Peach)
@@ -240,7 +468,8 @@ FINGER_COLORS = {
     "RM": "#C7CEEA",  # Правий середній (Periwinkle)
     "RR": "#E2BAFF",  # Правий безіменний (Lavender)
     "RP": "#FFBAEC",  # Правий мізинець (Rose)
-    "TH": "#E2ECE9"   # Великі пальці (Пробіл)
+    "TH": "#E2ECE9",  # Великі пальці (Пробіл)
+    "MOD": "#D8B4FE"  # Модифікатори Ctrl/Alt/Win/Shift
 }
 
 FINGER_NAMES_UA = {
@@ -252,7 +481,8 @@ FINGER_NAMES_UA = {
     "RM": "Правий середній",
     "RR": "Правий безіменний",
     "RP": "Правий мізинець",
-    "TH": "Великий палець (Пробіл)"
+    "TH": "Великий палець (Пробіл)",
+    "MOD": "Пальчик на модифікаторі"
 }
 
 FINGER_NAMES_EN = {
@@ -264,10 +494,11 @@ FINGER_NAMES_EN = {
     "RM": "Right Middle",
     "RR": "Right Ring",
     "RP": "Right Pinky",
-    "TH": "Thumb (Spacebar)"
+    "TH": "Thumb (Spacebar)",
+    "MOD": "Modifier Finger"
 }
 
-# Клавіатурні ряди (символ, пальцева зона, відносна ширина дефолт=1.0)
+# Повна реалістична розкладка з Ctrl, Alt, Win, Shift для навчання гарячим клавішам
 KEYBOARD_LAYOUTS = {
     "UA": [
         # Ряд цифр
@@ -280,10 +511,12 @@ KEYBOARD_LAYOUTS = {
         [("Ф", "LP"), ("І", "LR"), ("В", "LM"), ("А", "LI"), ("П", "LI"),
          ("Р", "RI"), ("О", "RI"), ("Л", "RM"), ("Д", "RR"), ("Ж", "RP"), ("Є", "RP")],
         # Ряд 3
-        [("Я", "LP"), ("Ч", "LR"), ("С", "LM"), ("М", "LI"), ("И", "LI"),
-         ("Т", "RI"), ("Ь", "RI"), ("Б", "RM"), ("Ю", "RR"), (".", "RP"), (",", "RP")],
-        # Пробіл
-        [("ПРОБІЛ", "TH", 5.5)]
+        [("Shift", "MOD", 1.4), ("Я", "LP"), ("Ч", "LR"), ("С", "LM"), ("М", "LI"), ("И", "LI"),
+         ("Т", "RI"), ("Ь", "RI"), ("Б", "RM"), ("Ю", "RR"), (".", "RP"), (",", "RP"), ("Shift", "MOD", 1.4)],
+        # Ряд 4 (Модифікатори та Пробіл)
+        [("Ctrl", "MOD", 1.4), ("Win", "MOD", 1.1), ("Alt", "MOD", 1.1),
+         ("ПРОБІЛ", "TH", 5.2),
+         ("Alt", "MOD", 1.1), ("Win", "MOD", 1.1), ("Ctrl", "MOD", 1.4)]
     ],
     "EN": [
         # Digits row
@@ -296,10 +529,12 @@ KEYBOARD_LAYOUTS = {
         [("A", "LP"), ("S", "LR"), ("D", "LM"), ("F", "LI"), ("G", "LI"),
          ("H", "RI"), ("J", "RI"), ("K", "RM"), ("L", "RR"), (";", "RP"), ("'", "RP")],
         # Row 3
-        [("Z", "LP"), ("X", "LR"), ("C", "LM"), ("V", "LI"), ("B", "LI"),
-         ("N", "RI"), ("M", "RI"), (",", "RM"), (".", "RR"), ("/", "RP")],
-        # Spacebar
-        [("SPACE", "TH", 5.5)]
+        [("Shift", "MOD", 1.4), ("Z", "LP"), ("X", "LR"), ("C", "LM"), ("V", "LI"), ("B", "LI"),
+         ("N", "RI"), ("M", "RI"), (",", "RM"), (".", "RR"), ("/", "RP"), ("Shift", "MOD", 1.4)],
+        # Row 4 (Modifiers & Spacebar)
+        [("Ctrl", "MOD", 1.4), ("Win", "MOD", 1.1), ("Alt", "MOD", 1.1),
+         ("SPACE", "TH", 5.2),
+         ("Alt", "MOD", 1.1), ("Win", "MOD", 1.1), ("Ctrl", "MOD", 1.4)]
     ]
 }
 
@@ -308,8 +543,8 @@ class KidsKeyboardTrainer(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Клавіатурний тренажер для дітей • Спритні пальчики 🚀")
-        self.geometry("980x700")
-        self.minsize(880, 640)
+        self.geometry("1020x720")
+        self.minsize(920, 660)
         self.configure(bg="#EEF2F6")
 
         # Встановлення іконки вікна
@@ -325,12 +560,13 @@ class KidsKeyboardTrainer(tk.Tk):
 
         # Поточний стан
         self.lang = "UA"  # "UA" або "EN"
-        self.mode = "letters"  # "letters", "words", "arcade", "sentences"
+        self.mode = "letters"  # "letters", "words", "arcade", "sentences", "hotkeys"
         self.current_student_name = self.progress.data.get("last_student", "Юний Чемпіон")
         self.current_avatar = "🚀"
         self.student_data = self.progress.get_student(self.current_student_name, self.current_avatar)
 
         # Ігрові змінні
+        self.target_chars = []  # список активних літер для підсвічування
         self.target_char = ""
         self.target_word = ""
         self.word_index = 0
@@ -340,9 +576,17 @@ class KidsKeyboardTrainer(tk.Tk):
         self.session_typed = 0
         self.session_correct = 0
 
+        # Змінні режиму гарячих клавіш
+        self.hotkeys_submode = "practice"  # "practice", "quiz", "handbook"
+        self.current_hotkey_idx = 0
+        self.ctrl_held = False
+        self.alt_held = False
+        self.shift_held = False
+        self.win_held = False
+
         # Змінні режиму "Падаючі літери" (Аркада)
         self.arcade_running = False
-        self.arcade_items = []  # [{ "char": "А", "x": 100, "y": 20, "speed": 2.5, "id": tag }]
+        self.arcade_items = []
         self.arcade_score = 0
         self.arcade_lives = 3
 
@@ -350,8 +594,9 @@ class KidsKeyboardTrainer(tk.Tk):
         self.build_ui()
         self.select_mode("letters")
 
-        # Глобальний слухач клавіатури
-        self.bind("<Key>", self.handle_key_press)
+        # Слухачі клавіатури (натискання та відпускання)
+        self.bind("<KeyPress>", self.handle_key_down)
+        self.bind("<KeyRelease>", self.handle_key_up)
 
     def build_ui(self):
         # 1. Верхня панель (Шапка програми)
@@ -385,7 +630,7 @@ class KidsKeyboardTrainer(tk.Tk):
         )
         self.stats_label.pack(anchor="w")
 
-        # Центр шапки: Назва та маскот
+        # Центр шапки: Назва
         center_frame = tk.Frame(header_frame, bg="#3A6073")
         center_frame.pack(side="left", expand=True)
 
@@ -431,6 +676,7 @@ class KidsKeyboardTrainer(tk.Tk):
         modes = [
             ("letters", "🔤 Літери та ряди"),
             ("words", "🐱 Веселі слова"),
+            ("hotkeys", "⚡ Гарячі клавіші"),
             ("arcade", "☄️ Падаючі літери"),
             ("sentences", "📖 Речення")
         ]
@@ -438,7 +684,7 @@ class KidsKeyboardTrainer(tk.Tk):
         for m_id, m_text in modes:
             btn = tk.Button(
                 mode_bar, text=m_text, font=("Segoe UI", 10, "bold"),
-                bg="#E2E8F0", fg="#475569", bd=0, relief="flat", padx=16, pady=8,
+                bg="#E2E8F0", fg="#475569", bd=0, relief="flat", padx=14, pady=8,
                 cursor="hand2", command=lambda mid=m_id: self.select_mode(mid)
             )
             btn.pack(side="left", padx=2, pady=2)
@@ -473,14 +719,13 @@ class KidsKeyboardTrainer(tk.Tk):
         self.kbd_canvas.pack(fill="both", expand=True, padx=6, pady=4)
         self.kbd_canvas.bind("<Configure>", lambda e: self.draw_keyboard())
 
-        self.key_rects = {}  # { char: [rect_id, text_id, base_color] }
+        self.key_rects = {}  # { char: [ {rect, text, base_color, finger} ] }
 
         # Оновлення статистики
         self.update_stats_display()
 
     # --- Зміна режимів навчання ---
     def select_mode(self, mode_id):
-        # Зупинити аркаду, якщо вона працювала
         if self.mode == "arcade" and mode_id != "arcade":
             self.arcade_running = False
 
@@ -502,6 +747,8 @@ class KidsKeyboardTrainer(tk.Tk):
             self.setup_letters_view()
         elif mode_id == "words":
             self.setup_words_view()
+        elif mode_id == "hotkeys":
+            self.setup_hotkeys_view()
         elif mode_id == "arcade":
             self.setup_arcade_view()
         elif mode_id == "sentences":
@@ -511,7 +758,6 @@ class KidsKeyboardTrainer(tk.Tk):
 
     # --- РЕЖИМ 1: ЛІТЕРИ ТА РЯДИ ---
     def setup_letters_view(self):
-        # Верхня панель: вибір підрівня
         sublevels_frame = tk.Frame(self.work_area, bg="#EEF2F6")
         sublevels_frame.pack(fill="x", pady=(0, 10))
 
@@ -526,7 +772,6 @@ class KidsKeyboardTrainer(tk.Tk):
         level_combo.pack(side="left", padx=5)
         level_combo.bind("<<ComboboxSelected>>", self.on_level_selected)
 
-        # Картка з великою літерою
         card = tk.Frame(self.work_area, bg="#FFFFFF", bd=2, relief="ridge")
         card.pack(fill="both", expand=True, pady=5)
 
@@ -562,15 +807,15 @@ class KidsKeyboardTrainer(tk.Tk):
     def next_letter(self):
         levels = CONTENT[self.lang]["levels"]
         chars = levels[self.selected_level_index]["chars"]
-        # Уникаємо повторення однієї й тієї самої літери поспіль
         new_char = random.choice(chars)
         while len(chars) > 1 and new_char == self.target_char:
             new_char = random.choice(chars)
 
         self.target_char = new_char
+        self.target_chars = [new_char]
         self.big_char_label.configure(text=self.target_char, fg="#2563EB")
         self.update_finger_hint(self.target_char)
-        self.highlight_keyboard_key(self.target_char)
+        self.highlight_keyboard_keys(self.target_chars)
 
     # --- РЕЖИМ 2: ВЕСЕЛІ СЛОВА З ЕМОДЗІ ---
     def setup_words_view(self):
@@ -583,7 +828,6 @@ class KidsKeyboardTrainer(tk.Tk):
         )
         self.word_emoji_label.pack(pady=(15, 0))
 
-        # Контейнер для літер слова
         self.word_chars_frame = tk.Frame(card, bg="#FFFFFF")
         self.word_chars_frame.pack(expand=True, pady=10)
         self.word_char_labels = []
@@ -605,12 +849,10 @@ class KidsKeyboardTrainer(tk.Tk):
 
         self.word_emoji_label.configure(text=emoji)
 
-        # Очистити старі літери
         for lbl in self.word_char_labels:
             lbl.destroy()
         self.word_char_labels = []
 
-        # Створити нові картки для кожної літери слова
         for ch in self.target_word:
             lbl = tk.Label(
                 self.word_chars_frame, text=ch, font=("Segoe UI", 36, "bold"),
@@ -625,17 +867,18 @@ class KidsKeyboardTrainer(tk.Tk):
         if self.word_index < len(self.target_word):
             curr_char = self.target_word[self.word_index]
             self.target_char = curr_char
+            self.target_chars = [curr_char]
             self.word_char_labels[self.word_index].configure(
                 bg="#FEF08A", fg="#854D0E", relief="ridge", bd=2
             )
             self.update_finger_hint(curr_char)
-            self.highlight_keyboard_key(curr_char)
+            self.highlight_keyboard_keys(self.target_chars)
             self.word_feedback_label.configure(
                 text=f"Наступна літера: '{curr_char}'", fg="#3B82F6"
             )
         else:
-            # Слово завершено!
             self.target_char = ""
+            self.target_chars = []
             self.sound.play("complete")
             self.student_data["stars"] += 2
             self.student_data["words_typed"] += 1
@@ -645,12 +888,308 @@ class KidsKeyboardTrainer(tk.Tk):
             )
             self.after(900, self.next_word)
 
-    # --- РЕЖИМ 3: ПАДАЮЧІ ЛІТЕРИ (АРКАДНА МІНІ-ГРА) ---
+    # --- РЕЖИМ 3: ГАРЯЧІ КЛАВІШІ (HOTKEYS) ---
+    def setup_hotkeys_view(self):
+        # Верхня панель підрежимів гарячих клавіш
+        sub_bar = tk.Frame(self.work_area, bg="#EEF2F6")
+        sub_bar.pack(fill="x", pady=(0, 6))
+
+        submodes = [
+            ("practice", "🎯 Тренажер комбінацій"),
+            ("quiz", "❓ Вікторина знавця"),
+            ("handbook", "📚 Довідник гарячих клавіш")
+        ]
+
+        self.hotkey_submode_btns = {}
+        for sm_id, sm_title in submodes:
+            btn = tk.Button(
+                sub_bar, text=sm_title, font=("Segoe UI", 9, "bold"),
+                bg="#FFFFFF" if sm_id == self.hotkeys_submode else "#E2E8F0",
+                fg="#2563EB" if sm_id == self.hotkeys_submode else "#475569",
+                relief="groove" if sm_id == self.hotkeys_submode else "flat",
+                padx=12, pady=4, cursor="hand2",
+                command=lambda sid=sm_id: self.switch_hotkeys_submode(sid)
+            )
+            btn.pack(side="left", padx=4)
+            self.hotkey_submode_btns[sm_id] = btn
+
+        self.hotkeys_content_area = tk.Frame(self.work_area, bg="#EEF2F6")
+        self.hotkeys_content_area.pack(fill="both", expand=True)
+
+        if self.hotkeys_submode == "practice":
+            self.render_hotkeys_practice()
+        elif self.hotkeys_submode == "quiz":
+            self.render_hotkeys_quiz()
+        elif self.hotkeys_submode == "handbook":
+            self.render_hotkeys_handbook()
+
+    def switch_hotkeys_submode(self, submode_id):
+        self.hotkeys_submode = submode_id
+        for sid, btn in self.hotkey_submode_btns.items():
+            if sid == submode_id:
+                btn.configure(bg="#FFFFFF", fg="#2563EB", relief="groove")
+            else:
+                btn.configure(bg="#E2E8F0", fg="#475569", relief="flat")
+
+        for w in self.hotkeys_content_area.winfo_children():
+            w.destroy()
+
+        if submode_id == "practice":
+            self.render_hotkeys_practice()
+        elif submode_id == "quiz":
+            self.render_hotkeys_quiz()
+        elif submode_id == "handbook":
+            self.render_hotkeys_handbook()
+
+    def render_hotkeys_practice(self):
+        hotkeys_list = HOTKEYS_DATA.get(self.lang, HOTKEYS_DATA["UA"])
+        if self.current_hotkey_idx >= len(hotkeys_list):
+            self.current_hotkey_idx = 0
+        hk = hotkeys_list[self.current_hotkey_idx]
+
+        card = tk.Frame(self.hotkeys_content_area, bg="#FFFFFF", bd=2, relief="ridge")
+        card.pack(fill="both", expand=True, pady=4)
+
+        # Селектор та навігація зверху картки
+        nav_frame = tk.Frame(card, bg="#FFFFFF")
+        nav_frame.pack(fill="x", padx=15, pady=(8, 4))
+
+        tk.Button(
+            nav_frame, text="⬅️ Попередня", font=("Segoe UI", 9, "bold"),
+            bg="#F1F5F9", fg="#334155", relief="flat", padx=10, pady=3,
+            cursor="hand2", command=self.prev_hotkey
+        ).pack(side="left")
+
+        # Комбобокс вибору комбінації
+        hk_names = [f"{item['emoji']} {' + '.join(item['keys'])} : {item['title']}" for item in hotkeys_list]
+        self.hk_select_var = tk.StringVar(value=hk_names[self.current_hotkey_idx])
+        hk_combo = ttk.Combobox(
+            nav_frame, textvariable=self.hk_select_var, values=hk_names,
+            state="readonly", width=42, font=("Segoe UI", 9)
+        )
+        hk_combo.pack(side="left", padx=10)
+        hk_combo.bind("<<ComboboxSelected>>", self.on_hotkey_combo_selected)
+
+        tk.Button(
+            nav_frame, text="Наступна ➡️", font=("Segoe UI", 9, "bold"),
+            bg="#2563EB", fg="white", relief="flat", padx=10, pady=3,
+            cursor="hand2", command=self.next_hotkey
+        ).pack(side="right")
+
+        # Візуалізація великих клавіш комбінації
+        keys_display_frame = tk.Frame(card, bg="#FFFFFF")
+        keys_display_frame.pack(pady=(10, 4))
+
+        for idx, k in enumerate(hk["keys"]):
+            if idx > 0:
+                tk.Label(
+                    keys_display_frame, text="+", font=("Segoe UI", 26, "bold"),
+                    bg="#FFFFFF", fg="#94A3B8"
+                ).pack(side="left", padx=8)
+
+            badge = tk.Label(
+                keys_display_frame, text=f" {k} ", font=("Segoe UI", 22, "bold"),
+                bg="#E0E7FF", fg="#3730A3", bd=2, relief="solid", padx=12, pady=4
+            )
+            badge.pack(side="left", padx=4)
+
+        # Опис та призначення
+        tk.Label(
+            card, text=f"{hk['emoji']} {hk['title']}",
+            font=("Segoe UI", 15, "bold"), bg="#FFFFFF", fg="#1E293B"
+        ).pack(pady=(4, 2))
+
+        tk.Label(
+            card, text=hk["desc"],
+            font=("Segoe UI", 11), bg="#FFFFFF", fg="#64748B"
+        ).pack(pady=(0, 6))
+
+        # Панель статусу натискання в реальному часі
+        self.hk_status_box = tk.Frame(card, bg="#FEF3C7", bd=1, relief="solid")
+        self.hk_status_box.pack(fill="x", padx=40, pady=4)
+
+        self.hk_status_label = tk.Label(
+            self.hk_status_box, text=f"⏳ Затисни клавішу [{hk['keys'][0]}] лівою рукою...",
+            font=("Segoe UI", 12, "bold"), bg="#FEF3C7", fg="#B45309", pady=6
+        )
+        self.hk_status_label.pack()
+
+        # Міні-пісочниця (Інтерактивне поле для випробування дії)
+        sandbox_frame = tk.Frame(card, bg="#F8FAFC", bd=1, relief="ridge")
+        sandbox_frame.pack(fill="x", padx=40, pady=(6, 8))
+
+        tk.Label(
+            sandbox_frame, text="🧪 Інтерактивне поле для перевірки:",
+            font=("Segoe UI", 9, "bold"), bg="#F8FAFC", fg="#475569"
+        ).pack(anchor="w", padx=10, pady=(4, 2))
+
+        sand_inner = tk.Frame(sandbox_frame, bg="#F8FAFC")
+        sand_inner.pack(fill="x", padx=10, pady=(0, 6))
+
+        tk.Label(sand_inner, text="Зразок:", font=("Segoe UI", 9), bg="#F8FAFC", fg="#64748B").pack(side="left")
+        sample_entry = tk.Entry(sand_inner, font=("Segoe UI", 10), width=24)
+        sample_entry.insert(0, hk["sample_text"])
+        sample_entry.pack(side="left", padx=5)
+
+        tk.Label(sand_inner, text="Сюди встав:", font=("Segoe UI", 9), bg="#F8FAFC", fg="#64748B").pack(side="left", padx=(10, 0))
+        target_entry = tk.Entry(sand_inner, font=("Segoe UI", 10), width=24)
+        target_entry.pack(side="left", padx=5)
+
+        # Оновлення підсвічування на віртуальній клавіатурі
+        self.update_hotkey_keyboard_guidance(hk)
+
+    def on_hotkey_combo_selected(self, event=None):
+        val = self.hk_select_var.get()
+        hotkeys_list = HOTKEYS_DATA.get(self.lang, HOTKEYS_DATA["UA"])
+        for idx, item in enumerate(hotkeys_list):
+            if item["title"] in val:
+                self.current_hotkey_idx = idx
+                break
+        self.switch_hotkeys_submode("practice")
+
+    def prev_hotkey(self):
+        hotkeys_list = HOTKEYS_DATA.get(self.lang, HOTKEYS_DATA["UA"])
+        self.current_hotkey_idx = (self.current_hotkey_idx - 1) % len(hotkeys_list)
+        self.switch_hotkeys_submode("practice")
+
+    def next_hotkey(self):
+        hotkeys_list = HOTKEYS_DATA.get(self.lang, HOTKEYS_DATA["UA"])
+        self.current_hotkey_idx = (self.current_hotkey_idx + 1) % len(hotkeys_list)
+        self.switch_hotkeys_submode("practice")
+
+    def update_hotkey_keyboard_guidance(self, hk):
+        # Підсвічуємо всі клавіші, які входять у комбінацію
+        keys_to_highlight = [k.upper() for k in hk["keys"]]
+        self.target_chars = keys_to_highlight
+        self.finger_hint_label.configure(
+            text=f"👉 {hk['finger']}", fg="#4338CA"
+        )
+        self.highlight_keyboard_keys(self.target_chars)
+
+    # Вікторина гарячих клавіш (Quiz)
+    def render_hotkeys_quiz(self):
+        hotkeys_list = HOTKEYS_DATA.get(self.lang, HOTKEYS_DATA["UA"])
+        # Обираємо випадкове питання
+        q_item = random.choice(hotkeys_list)
+        self.current_quiz_target = q_item
+
+        card = tk.Frame(self.hotkeys_content_area, bg="#FFFFFF", bd=2, relief="ridge")
+        card.pack(fill="both", expand=True, pady=4)
+
+        tk.Label(
+            card, text="🏆 Вікторина супергероя клавіатури! 🌟",
+            font=("Segoe UI", 15, "bold"), bg="#FFFFFF", fg="#2563EB"
+        ).pack(pady=(12, 4))
+
+        tk.Label(
+            card, text=q_item["quiz_question"],
+            font=("Segoe UI", 13, "bold"), bg="#FFFFFF", fg="#1E293B", wraplength=700
+        ).pack(pady=(6, 12))
+
+        # Формуємо 4 варіанти відповідей (1 правильний і 3 неправильних)
+        distractors = [x for x in hotkeys_list if x["id"] != q_item["id"]]
+        random.shuffle(distractors)
+        options = [q_item] + distractors[:3]
+        random.shuffle(options)
+
+        options_frame = tk.Frame(card, bg="#FFFFFF")
+        options_frame.pack(expand=True, pady=5)
+
+        colors = ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6"]
+        for idx, opt in enumerate(options):
+            combo_str = " + ".join(opt["keys"])
+            btn_text = f"{opt['emoji']}  {combo_str}\n({opt['title']})"
+            btn = tk.Button(
+                options_frame, text=btn_text, font=("Segoe UI", 11, "bold"),
+                bg=colors[idx % len(colors)], fg="white", width=26, height=3,
+                relief="flat", cursor="hand2", bd=0,
+                command=lambda chosen=opt: self.check_quiz_answer(chosen, q_item)
+            )
+            btn.grid(row=idx // 2, column=idx % 2, padx=12, pady=8)
+
+        self.quiz_feedback = tk.Label(
+            card, text="Обери правильну комбінацію мишкою або натисни її на клавіатурі!",
+            font=("Segoe UI", 11), bg="#FFFFFF", fg="#64748B"
+        )
+        self.quiz_feedback.pack(pady=(4, 10))
+
+        # Підсвічуємо на клавіатурі правильну відповідь як підказку для навчання
+        self.target_chars = [k.upper() for k in q_item["keys"]]
+        self.finger_hint_label.configure(text=f"👉 Підказка: {q_item['finger']}", fg="#4338CA")
+        self.highlight_keyboard_keys(self.target_chars)
+
+    def check_quiz_answer(self, chosen, correct):
+        if chosen["id"] == correct["id"]:
+            self.sound.play("complete")
+            self.student_data["stars"] += 3
+            self.student_data["hotkeys_mastered"] += 1
+            self.update_stats_display()
+            self.quiz_feedback.configure(
+                text=f"🎉 ПРАВИЛЬНО! Ти справжній майстер гарячих клавіш! +3 ⭐", fg="#16A34A"
+            )
+            self.after(1200, lambda: self.render_hotkeys_quiz() if self.hotkeys_submode == "quiz" else None)
+        else:
+            self.sound.play("wrong")
+            self.quiz_feedback.configure(
+                text=f"Спробуй ще! Правильна відповідь була: {' + '.join(correct['keys'])}", fg="#DC2626"
+            )
+
+    # Довідник гарячих клавіш (Handbook)
+    def render_hotkeys_handbook(self):
+        hotkeys_list = HOTKEYS_DATA.get(self.lang, HOTKEYS_DATA["UA"])
+
+        container = tk.Frame(self.hotkeys_content_area, bg="#FFFFFF", bd=2, relief="ridge")
+        container.pack(fill="both", expand=True, pady=4)
+
+        canvas = tk.Canvas(container, bg="#FFFFFF", bd=0, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        scroll_content = tk.Frame(canvas, bg="#FFFFFF")
+
+        scroll_content.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scroll_content, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+        scrollbar.pack(side="right", fill="y")
+
+        tk.Label(
+            scroll_content, text="📚 Повний довідник корисних гарячих клавіш для дітей 🚀",
+            font=("Segoe UI", 13, "bold"), bg="#FFFFFF", fg="#1E293B"
+        ).pack(anchor="w", padx=15, pady=(10, 8))
+
+        for hk in hotkeys_list:
+            row_frame = tk.Frame(scroll_content, bg="#F8FAFC", bd=1, relief="solid")
+            row_frame.pack(fill="x", expand=True, padx=15, pady=4)
+
+            badge_text = " + ".join(hk["keys"])
+            badge = tk.Label(
+                row_frame, text=badge_text, font=("Segoe UI", 11, "bold"),
+                bg="#E0E7FF", fg="#3730A3", width=14, pady=4
+            )
+            badge.pack(side="left", padx=8, pady=6)
+
+            info_frame = tk.Frame(row_frame, bg="#F8FAFC")
+            info_frame.pack(side="left", fill="both", expand=True, padx=6)
+
+            tk.Label(
+                info_frame, text=f"{hk['emoji']} {hk['title']}",
+                font=("Segoe UI", 11, "bold"), bg="#F8FAFC", fg="#0F172A"
+            ).pack(anchor="w")
+
+            tk.Label(
+                info_frame, text=hk["desc"] + " | " + hk["finger"],
+                font=("Segoe UI", 9), bg="#F8FAFC", fg="#64748B"
+            ).pack(anchor="w")
+
+    # --- РЕЖИМ 4: ПАДАЮЧІ ЛІТЕРИ (АРКАДНА МІНІ-ГРА) ---
     def setup_arcade_view(self):
         card = tk.Frame(self.work_area, bg="#0F172A", bd=2, relief="ridge")
         card.pack(fill="both", expand=True, pady=5)
 
-        # Верхня панель гри: Бали, Життя, Кнопка старту
         arcade_bar = tk.Frame(card, bg="#1E293B")
         arcade_bar.pack(fill="x", padx=10, pady=5)
 
@@ -673,7 +1212,6 @@ class KidsKeyboardTrainer(tk.Tk):
         )
         self.arcade_btn.pack(side="right", padx=10)
 
-        # Canvas гри
         self.arcade_canvas = tk.Canvas(card, bg="#0B132B", bd=0, highlightthickness=0)
         self.arcade_canvas.pack(fill="both", expand=True, padx=5, pady=5)
 
@@ -703,12 +1241,10 @@ class KidsKeyboardTrainer(tk.Tk):
             return
         w = self.arcade_canvas.winfo_width() or 600
         x = random.randint(50, max(50, w - 60))
-        # Обираємо випадкову літеру з поточного алфавіту
         levels = CONTENT[self.lang]["levels"]
         pool = levels[self.selected_level_index]["chars"]
         char = random.choice(pool)
 
-        # Малюємо коло-метеорит та літеру
         tag = f"star_{random.randint(1000, 9999)}"
         circle_id = self.arcade_canvas.create_oval(
             x - 22, -45, x + 22, -1, fill="#F59E0B", outline="#FDE047", width=2, tags=tag
@@ -728,7 +1264,6 @@ class KidsKeyboardTrainer(tk.Tk):
         }
         self.arcade_items.append(item)
 
-        # Наступний метеорит через інтервал
         if self.arcade_running:
             self.after(random.randint(1800, 2600), self.spawn_arcade_char)
 
@@ -738,8 +1273,6 @@ class KidsKeyboardTrainer(tk.Tk):
 
         h = self.arcade_canvas.winfo_height() or 300
         to_remove = []
-
-        # Якщо є хоча б один об'єкт на полі, підсвітимо найнижчий на клавіатурі
         lowest_item = None
         max_y = -999
 
@@ -750,7 +1283,6 @@ class KidsKeyboardTrainer(tk.Tk):
                 max_y = item["y"]
                 lowest_item = item
 
-            # Торкнувся дна
             if item["y"] > h - 10:
                 to_remove.append(item)
                 self.arcade_canvas.delete(item["tag"])
@@ -768,10 +1300,12 @@ class KidsKeyboardTrainer(tk.Tk):
 
         if lowest_item:
             self.target_char = lowest_item["char"]
+            self.target_chars = [self.target_char]
             self.update_finger_hint(self.target_char)
-            self.highlight_keyboard_key(self.target_char)
+            self.highlight_keyboard_keys(self.target_chars)
         else:
             self.target_char = ""
+            self.target_chars = []
 
         if self.arcade_running:
             self.after(35, self.arcade_loop)
@@ -791,7 +1325,7 @@ class KidsKeyboardTrainer(tk.Tk):
             text=msg, fill="#FDE047", font=("Segoe UI", 16, "bold")
         )
 
-    # --- РЕЖИМ 4: РЕЧЕННЯ ---
+    # --- РЕЖИМ 5: РЕЧЕННЯ ---
     def setup_sentences_view(self):
         card = tk.Frame(self.work_area, bg="#FFFFFF", bd=2, relief="ridge")
         card.pack(fill="both", expand=True, pady=5)
@@ -824,34 +1358,27 @@ class KidsKeyboardTrainer(tk.Tk):
         curr_char = self.target_sentence[self.sentence_index] if self.sentence_index < len(self.target_sentence) else ""
         rest_part = self.target_sentence[self.sentence_index + 1:] if self.sentence_index < len(self.target_sentence) else ""
 
-        # Зелена надрукована частина
         self.sentence_canvas.create_text(
             30, 35, anchor="w", text=typed_part,
             font=("Consolas", 18, "bold"), fill="#16A34A"
         )
 
-        # Визначаємо поточну літеру
         if curr_char:
             self.target_char = "ПРОБІЛ" if curr_char == " " else curr_char.upper()
+            self.target_chars = [self.target_char]
             self.update_finger_hint(self.target_char)
-            self.highlight_keyboard_key(self.target_char)
+            self.highlight_keyboard_keys(self.target_chars)
 
-            # Малюємо жовту підсвітку під поточною літерою
-            # Вимірюємо ширину через canvas
-            # Приблизне розміщення
-            all_text_so_far = typed_part + curr_char
             self.sentence_canvas.create_text(
                 30, 35, anchor="w",
                 text=typed_part + curr_char + rest_part,
                 font=("Consolas", 18), fill="#94A3B8"
             )
-            # Перемальовуємо вже надруковані зеленим
             self.sentence_canvas.create_text(
                 30, 35, anchor="w", text=typed_part,
                 font=("Consolas", 18, "bold"), fill="#16A34A"
             )
         else:
-            # Завершено речення!
             self.sound.play("complete")
             self.student_data["stars"] += 5
             self.update_stats_display()
@@ -870,18 +1397,16 @@ class KidsKeyboardTrainer(tk.Tk):
 
         layout = KEYBOARD_LAYOUTS[self.lang]
         num_rows = len(layout)
-        row_h = (h - 20) / num_rows
+        row_h = (h - 18) / num_rows
         key_margin = 3
 
         for r_idx, row in enumerate(layout):
-            y1 = 8 + r_idx * row_h
+            y1 = 6 + r_idx * row_h
             y2 = y1 + row_h - key_margin
 
-            # Підрахунок загальної ширини рядка в одиницях
             total_units = sum(item[2] if len(item) > 2 else 1.0 for item in row)
-            unit_w = (w - 30) / max(13.5, total_units)
+            unit_w = (w - 28) / max(13.8, total_units)
 
-            # Центрування рядка
             row_pixel_w = total_units * unit_w
             x_cursor = (w - row_pixel_w) / 2
 
@@ -895,30 +1420,31 @@ class KidsKeyboardTrainer(tk.Tk):
 
                 base_color = FINGER_COLORS.get(finger_code, "#FFFFFF")
 
-                # Малюємо скруглену клавішу
                 rect_id = self.create_rounded_rect(
-                    self.kbd_canvas, x1, y1, x2, y2, radius=8,
+                    self.kbd_canvas, x1, y1, x2, y2, radius=7,
                     fill=base_color, outline="#94A3B8", width=1.5
                 )
 
-                # Текст клавіші
-                font_size = 10 if len(char) > 2 else 12
-                font_weight = "bold" if len(char) == 1 else "normal"
+                font_size = 9 if len(char) > 2 else 12
+                font_weight = "bold" if len(char) <= 2 else "normal"
                 text_id = self.kbd_canvas.create_text(
                     (x1 + x2) / 2, (y1 + y2) / 2,
                     text=char, fill="#1E293B", font=("Segoe UI", font_size, font_weight)
                 )
 
-                self.key_rects[char.upper()] = {
+                key_data = {
                     "rect": rect_id,
                     "text": text_id,
                     "base_color": base_color,
                     "finger": finger_code
                 }
+                char_key = char.upper()
+                if char_key not in self.key_rects:
+                    self.key_rects[char_key] = []
+                self.key_rects[char_key].append(key_data)
 
-        # Якщо є активна цільова літера, підсвітити її
-        if self.target_char:
-            self.highlight_keyboard_key(self.target_char)
+        if self.target_chars:
+            self.highlight_keyboard_keys(self.target_chars)
 
     def create_rounded_rect(self, canvas, x1, y1, x2, y2, radius=8, **kwargs):
         points = [
@@ -937,33 +1463,37 @@ class KidsKeyboardTrainer(tk.Tk):
         ]
         return canvas.create_polygon(points, smooth=True, **kwargs)
 
-    def highlight_keyboard_key(self, char):
+    def highlight_keyboard_keys(self, char_list):
         # Скидаємо всі клавіші до їхніх базових кольорів
-        for k_char, data in self.key_rects.items():
-            self.kbd_canvas.itemconfig(data["rect"], fill=data["base_color"], outline="#94A3B8", width=1.5)
+        for k_char, data_list in self.key_rects.items():
+            for data in data_list:
+                self.kbd_canvas.itemconfig(data["rect"], fill=data["base_color"], outline="#94A3B8", width=1.5)
 
-        char_key = char.upper()
-        if char_key in self.key_rects:
-            data = self.key_rects[char_key]
-            # Яскраве сяйво: золотистий колір та товста обводка
-            self.kbd_canvas.itemconfig(data["rect"], fill="#FBBF24", outline="#D97706", width=3)
-            self.kbd_canvas.tag_raise(data["rect"])
-            self.kbd_canvas.tag_raise(data["text"])
+        normalized_list = [c.upper() for c in char_list]
+        for c in normalized_list:
+            if c in self.key_rects:
+                for data in self.key_rects[c]:
+                    # Якщо це модифікатор Ctrl/Alt/Shift/Win і він наразі затиснутий
+                    is_held = (c == "CTRL" and self.ctrl_held) or (c == "ALT" and self.alt_held) or (c == "SHIFT" and self.shift_held)
+                    fill_c = "#4ADE80" if is_held else "#FBBF24"
+                    outline_c = "#15803D" if is_held else "#D97706"
+                    self.kbd_canvas.itemconfig(data["rect"], fill=fill_c, outline=outline_c, width=3)
+                    self.kbd_canvas.tag_raise(data["rect"])
+                    self.kbd_canvas.tag_raise(data["text"])
 
     def flash_key(self, char, is_correct):
         char_key = char.upper()
         if char_key in self.key_rects:
-            data = self.key_rects[char_key]
             flash_color = "#4ADE80" if is_correct else "#F87171"
-            self.kbd_canvas.itemconfig(data["rect"], fill=flash_color, outline="#FFFFFF", width=3)
-            # Повертаємо колір через 160мс
-            self.after(160, lambda: self.highlight_keyboard_key(self.target_char) if self.target_char else self.kbd_canvas.itemconfig(data["rect"], fill=data["base_color"], outline="#94A3B8", width=1.5))
+            for data in self.key_rects[char_key]:
+                self.kbd_canvas.itemconfig(data["rect"], fill=flash_color, outline="#FFFFFF", width=3)
+            self.after(160, lambda: self.highlight_keyboard_keys(self.target_chars))
 
     def update_finger_hint(self, char):
         char_key = char.upper()
         finger_dict = FINGER_NAMES_UA if self.lang == "UA" else FINGER_NAMES_EN
         if char_key in self.key_rects:
-            finger_code = self.key_rects[char_key]["finger"]
+            finger_code = self.key_rects[char_key][0]["finger"]
             finger_name = finger_dict.get(finger_code, "")
             self.finger_hint_label.configure(
                 text=f"👉 Палець: {finger_name}", fg="#0369A1"
@@ -971,14 +1501,36 @@ class KidsKeyboardTrainer(tk.Tk):
         else:
             self.finger_hint_label.configure(text="👉 Натискай потрібну клавішу", fg="#1E293B")
 
-    # --- ОБРОБНИК НАТИСКАННЯ КЛАВІШ ---
-    def handle_key_press(self, event):
-        # Якщо відкрито діалог або поле введення - не перехоплювати
+    # --- ОБРОБНИКИ НАТИСКАННЯ ТА ВІДПУСКАННЯ КЛАВІШ ---
+    def handle_key_down(self, event):
+        # Відстеження модифікаторів
+        sym = event.keysym
+        if sym in ("Control_L", "Control_R"):
+            self.ctrl_held = True
+            if self.mode == "hotkeys":
+                self.on_hotkey_modifier_change()
+                return
+        elif sym in ("Alt_L", "Alt_R"):
+            self.alt_held = True
+            if self.mode == "hotkeys":
+                self.on_hotkey_modifier_change()
+                return
+        elif sym in ("Shift_L", "Shift_R"):
+            self.shift_held = True
+        elif sym in ("Super_L", "Super_R", "Win_L", "Win_R"):
+            self.win_held = True
+
+        # Якщо фокус в полі введення - не перехоплювати звичайні клавіші
         if isinstance(event.widget, (tk.Entry, ttk.Combobox)):
             return
 
         typed_raw = event.char
         keysym = event.keysym
+
+        # Перевірка гарячих клавіш
+        if self.mode == "hotkeys":
+            self.process_hotkeys_input(event)
+            return
 
         # Обробка пробілу
         if keysym == "space":
@@ -993,7 +1545,6 @@ class KidsKeyboardTrainer(tk.Tk):
         self.session_typed += 1
         self.student_data["total_typed"] += 1
 
-        # Обробка за режимами
         if self.mode == "letters":
             self.process_letters_input(display_typed)
         elif self.mode == "words":
@@ -1003,10 +1554,92 @@ class KidsKeyboardTrainer(tk.Tk):
         elif self.mode == "sentences":
             self.process_sentences_input(typed)
 
+    def handle_key_up(self, event):
+        sym = event.keysym
+        if sym in ("Control_L", "Control_R"):
+            self.ctrl_held = False
+            if self.mode == "hotkeys":
+                self.on_hotkey_modifier_change()
+        elif sym in ("Alt_L", "Alt_R"):
+            self.alt_held = False
+            if self.mode == "hotkeys":
+                self.on_hotkey_modifier_change()
+        elif sym in ("Shift_L", "Shift_R"):
+            self.shift_held = False
+        elif sym in ("Super_L", "Super_R", "Win_L", "Win_R"):
+            self.win_held = False
+
+    def on_hotkey_modifier_change(self):
+        # Оновлення підсвітки при затисканні/відпусканні Ctrl/Alt
+        self.highlight_keyboard_keys(self.target_chars)
+        if self.hotkeys_submode == "practice" and hasattr(self, "hk_status_label"):
+            hotkeys_list = HOTKEYS_DATA.get(self.lang, HOTKEYS_DATA["UA"])
+            hk = hotkeys_list[self.current_hotkey_idx]
+            if self.ctrl_held or self.alt_held:
+                self.sound.play("hotkey_down")
+                self.hk_status_box.configure(bg="#DCFCE7")
+                self.hk_status_label.configure(
+                    text=f"🟢 Чудово! [{hk['keys'][0]}] затиснуто! Тепер натисни [{hk['keys'][1]}]!",
+                    bg="#DCFCE7", fg="#15803D"
+                )
+            else:
+                self.hk_status_box.configure(bg="#FEF3C7")
+                self.hk_status_label.configure(
+                    text=f"⏳ Затисни клавішу [{hk['keys'][0]}] лівою рукою...",
+                    bg="#FEF3C7", fg="#B45309"
+                )
+
+    def process_hotkeys_input(self, event):
+        hotkeys_list = HOTKEYS_DATA.get(self.lang, HOTKEYS_DATA["UA"])
+        if self.hotkeys_submode == "practice":
+            hk = hotkeys_list[self.current_hotkey_idx]
+            target_key = hk["keys"][1].upper()
+            target_keycodes = hk.get("keycodes", [])
+
+            # Перевіряємо затиснення модифікатора (Ctrl або Alt)
+            req_mod = hk["keys"][0].upper()
+            mod_matched = False
+            if req_mod == "CTRL" and (self.ctrl_held or (event.state & 0x0004)):
+                mod_matched = True
+            elif req_mod == "ALT" and (self.alt_held or (event.state & 0x20000) or (event.state & 0x0008)):
+                mod_matched = True
+            elif req_mod == "WIN" and self.win_held:
+                mod_matched = True
+
+            key_matched = (event.keycode in target_keycodes) or (event.keysym.upper() == target_key)
+
+            if mod_matched and key_matched:
+                # ВДАЛО ВИКОНАНО КОМБІНАЦІЮ!
+                self.sound.play("complete")
+                self.flash_key(hk["keys"][0], True)
+                self.flash_key(hk["keys"][1], True)
+                self.student_data["stars"] += 2
+                self.student_data["hotkeys_mastered"] += 1
+                self.update_stats_display()
+
+                self.hk_status_box.configure(bg="#BBF7D0")
+                self.hk_status_label.configure(
+                    text=f"🎉 УРА! Комбінація {' + '.join(hk['keys'])} успішно виконана! +2 ⭐",
+                    bg="#BBF7D0", fg="#166534"
+                )
+                # Автоматичний перехід до наступної комбінації через 1.2 сек
+                self.after(1200, self.next_hotkey)
+        elif self.hotkeys_submode == "quiz" and hasattr(self, "current_quiz_target"):
+            q_item = self.current_quiz_target
+            target_keycodes = q_item.get("keycodes", [])
+            req_mod = q_item["keys"][0].upper()
+            mod_matched = False
+            if req_mod == "CTRL" and (self.ctrl_held or (event.state & 0x0004)):
+                mod_matched = True
+            elif req_mod == "ALT" and (self.alt_held or (event.state & 0x20000) or (event.state & 0x0008)):
+                mod_matched = True
+
+            if mod_matched and ((event.keycode in target_keycodes) or (event.keysym.upper() == q_item["keys"][1].upper())):
+                self.check_quiz_answer(q_item, q_item)
+
     def process_letters_input(self, typed):
         target = self.target_char.upper()
         if typed == target:
-            # ПРАВИЛЬНО!
             self.session_correct += 1
             self.student_data["correct_typed"] += 1
             self.streak += 1
@@ -1026,7 +1659,6 @@ class KidsKeyboardTrainer(tk.Tk):
             self.update_stats_display()
             self.next_letter()
         else:
-            # НЕПРАВИЛЬНО
             self.streak = 0
             self.streak_label.configure(text="🔥 Серія: 0")
             self.sound.play("wrong")
@@ -1041,13 +1673,11 @@ class KidsKeyboardTrainer(tk.Tk):
 
         expected = self.target_word[self.word_index]
         if typed.upper() == expected.upper():
-            # Правильна літера в слові
             self.session_correct += 1
             self.student_data["correct_typed"] += 1
             self.sound.play("correct")
             self.flash_key(expected, True)
 
-            # Зелений колір на картці літери
             self.word_char_labels[self.word_index].configure(
                 bg="#BBF7D0", fg="#166534", bd=1, relief="solid"
             )
@@ -1064,7 +1694,6 @@ class KidsKeyboardTrainer(tk.Tk):
         if not self.arcade_running:
             return
 
-        # Знаходимо найнижчий метеорит з такою літерою
         matched_item = None
         highest_y = -999
         for item in self.arcade_items:
@@ -1074,7 +1703,6 @@ class KidsKeyboardTrainer(tk.Tk):
                     matched_item = item
 
         if matched_item:
-            # Збили зірку!
             self.sound.play("correct")
             self.flash_key(typed, True)
             self.arcade_items.remove(matched_item)
@@ -1090,7 +1718,6 @@ class KidsKeyboardTrainer(tk.Tk):
             return
 
         expected = self.target_sentence[self.sentence_index]
-        # Для речень враховуємо регістр або підтримуємо простий ввід
         is_match = (typed == expected) or (typed.lower() == expected.lower())
         if is_match:
             self.session_correct += 1
@@ -1110,6 +1737,7 @@ class KidsKeyboardTrainer(tk.Tk):
         flag_text = "🇬🇧 Eng" if self.lang == "EN" else "🇺🇦 Укр"
         self.lang_btn.configure(text=flag_text)
         self.selected_level_index = 0
+        self.current_hotkey_idx = 0
         self.select_mode(self.mode)
 
     def toggle_sound(self):
@@ -1193,7 +1821,7 @@ class KidsKeyboardTrainer(tk.Tk):
     def show_records_window(self):
         win = tk.Toplevel(self)
         win.title("🏆 Таблиця досягнень")
-        win.geometry("450x380")
+        win.geometry("520x400")
         win.resizable(False, False)
 
         tk.Label(
@@ -1204,17 +1832,19 @@ class KidsKeyboardTrainer(tk.Tk):
         tree_frame = tk.Frame(win)
         tree_frame.pack(fill="both", expand=True, padx=15, pady=5)
 
-        columns = ("name", "stars", "accuracy", "arcade")
+        columns = ("name", "stars", "accuracy", "arcade", "hotkeys")
         tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=8)
         tree.heading("name", text="Учень")
         tree.heading("stars", text="⭐ Зірочки")
         tree.heading("accuracy", text="🎯 Точність")
         tree.heading("arcade", text="☄️ Рекорд гри")
+        tree.heading("hotkeys", text="⚡ Гарячі клавіші")
 
-        tree.column("name", width=140)
+        tree.column("name", width=130)
         tree.column("stars", width=70, anchor="center")
-        tree.column("accuracy", width=80, anchor="center")
-        tree.column("arcade", width=90, anchor="center")
+        tree.column("accuracy", width=75, anchor="center")
+        tree.column("arcade", width=85, anchor="center")
+        tree.column("hotkeys", width=95, anchor="center")
 
         students = self.progress.data.get("students", {})
         for s_name, s_info in students.items():
@@ -1223,8 +1853,9 @@ class KidsKeyboardTrainer(tk.Tk):
             acc = f"{int(cor / tot * 100)}%" if tot > 0 else "100%"
             stars = s_info.get("stars", 0)
             arc = s_info.get("best_arcade_score", 0)
+            hk = s_info.get("hotkeys_mastered", 0)
             av = s_info.get("avatar", "🚀")
-            tree.insert("", "end", values=(f"{av} {s_name}", stars, acc, arc))
+            tree.insert("", "end", values=(f"{av} {s_name}", stars, acc, arc, f"{hk} шт"))
 
         tree.pack(fill="both", expand=True)
 
