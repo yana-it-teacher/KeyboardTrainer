@@ -1212,25 +1212,160 @@ class KidsKeyboardTrainer(tk.Tk):
         )
         self.hk_status_label.pack()
 
-        sandbox_frame = tk.Frame(card, bg="#F8FAFC", bd=1, relief="ridge")
-        sandbox_frame.pack(fill="x", padx=40, pady=(4, 6))
+        # Інтерактивна пісочниця (виставлена по центру картки)
+        sandbox_card = tk.Frame(card, bg="#F8FAFC", bd=2, relief="ridge", padx=16, pady=6)
+        sandbox_card.pack(anchor="center", pady=(6, 6))
 
         tk.Label(
-            sandbox_frame, text="🧪 Інтерактивне поле для випробування комбінації:",
-            font=("Segoe UI", 9, "bold"), bg="#F8FAFC", fg="#475569"
-        ).pack(anchor="w", padx=10, pady=(3, 1))
+            sandbox_card, text="🧪 Інтерактивне поле: випробуй копіювання (Ctrl+C) та вставку (Ctrl+V)",
+            font=("Segoe UI", 10, "bold"), bg="#F8FAFC", fg="#334155"
+        ).pack(anchor="center", pady=(0, 5))
 
-        sand_inner = tk.Frame(sandbox_frame, bg="#F8FAFC")
-        sand_inner.pack(fill="x", padx=10, pady=(0, 4))
+        # Рядок 1: Текст-зразок для копіювання
+        row1 = tk.Frame(sandbox_card, bg="#F8FAFC")
+        row1.pack(fill="x", pady=2)
 
-        tk.Label(sand_inner, text="Зразок:", font=("Segoe UI", 9), bg="#F8FAFC", fg="#64748B").pack(side="left")
-        sample_entry = tk.Entry(sand_inner, font=("Segoe UI", 9), width=24)
+        tk.Label(
+            row1, text="📋 1. Зразок:", font=("Segoe UI", 10, "bold"),
+            bg="#F8FAFC", fg="#475569", width=13, anchor="e"
+        ).pack(side="left", padx=(0, 6))
+
+        sample_entry = tk.Entry(row1, font=("Segoe UI", 11), width=30, justify="center")
         sample_entry.insert(0, hk["sample_text"])
-        sample_entry.pack(side="left", padx=5)
+        sample_entry.pack(side="left", padx=4)
 
-        tk.Label(sand_inner, text="Сюди встав:", font=("Segoe UI", 9), bg="#F8FAFC", fg="#64748B").pack(side="left", padx=(10, 0))
-        target_entry = tk.Entry(sand_inner, font=("Segoe UI", 9), width=24)
-        target_entry.pack(side="left", padx=5)
+        # Рядок 2: Місце для вставки (на новому окремому рядку!)
+        row2 = tk.Frame(sandbox_card, bg="#F8FAFC")
+        row2.pack(fill="x", pady=2)
+
+        tk.Label(
+            row2, text="📥 2. Сюди встав:", font=("Segoe UI", 10, "bold"),
+            bg="#F8FAFC", fg="#475569", width=13, anchor="e"
+        ).pack(side="left", padx=(0, 6))
+
+        target_entry = tk.Entry(row2, font=("Segoe UI", 11), width=30, justify="center")
+        target_entry.pack(side="left", padx=4)
+
+        # Збережемо посилання на поля для доступу з клавіатурних обробників
+        self.practice_sample_entry = sample_entry
+        self.practice_target_entry = target_entry
+
+        # Функції дій копіювання та вставки
+        def copy_action():
+            try:
+                sel = sample_entry.selection_get()
+            except Exception:
+                sel = sample_entry.get()
+            if not sel:
+                sel = hk["sample_text"]
+            self.clipboard_clear()
+            self.clipboard_append(sel)
+            self.flash_key("CTRL", True)
+            self.flash_key("C", True)
+            self.sound.play("correct")
+            self.sandbox_msg.configure(
+                text="📋 Скопійовано в буфер! Тепер перейди в поле «Сюди встав» і натисни Ctrl + V!",
+                fg="#16A34A"
+            )
+            if hk["id"] == "ctrl_c":
+                self.student_data["stars"] += 2
+                self.student_data["hotkeys_mastered"] += 1
+                self.update_stats_display()
+
+        def paste_action():
+            try:
+                clip_text = self.clipboard_get()
+            except Exception:
+                clip_text = ""
+            if clip_text:
+                target_entry.delete(0, tk.END)
+                target_entry.insert(0, clip_text)
+                self.flash_key("CTRL", True)
+                self.flash_key("V", True)
+                self.sound.play("complete")
+                self.sandbox_msg.configure(
+                    text="🎉 УРА! Текст успішно вставлено комбінацією Ctrl + V! Молодець! +2 ⭐",
+                    fg="#16A34A"
+                )
+                if hk["id"] == "ctrl_v":
+                    self.student_data["stars"] += 2
+                    self.student_data["hotkeys_mastered"] += 1
+                    self.update_stats_display()
+            else:
+                self.sound.play("wrong")
+                self.sandbox_msg.configure(
+                    text="⚠️ Буфер порожній! Спочатку скопіюй зразок комбінацією Ctrl + C!",
+                    fg="#DC2626"
+                )
+
+        def clear_action():
+            target_entry.delete(0, tk.END)
+            self.sandbox_msg.configure(
+                text="Поле очищено. Спробуй ще раз скопіювати та вставити!",
+                fg="#64748B"
+            )
+
+        btn_copy = tk.Button(
+            row1, text="📋 Ctrl+C", font=("Segoe UI", 9, "bold"),
+            bg="#E0E7FF", fg="#3730A3", relief="flat", padx=8, pady=2,
+            cursor="hand2", command=copy_action
+        )
+        btn_copy.pack(side="left", padx=4)
+
+        btn_paste = tk.Button(
+            row2, text="📥 Ctrl+V", font=("Segoe UI", 9, "bold"),
+            bg="#DCFCE7", fg="#166534", relief="flat", padx=8, pady=2,
+            cursor="hand2", command=paste_action
+        )
+        btn_paste.pack(side="left", padx=4)
+
+        btn_clear = tk.Button(
+            row2, text="🧹 Очистити", font=("Segoe UI", 9),
+            bg="#F1F5F9", fg="#64748B", relief="flat", padx=6, pady=2,
+            cursor="hand2", command=clear_action
+        )
+        btn_clear.pack(side="left", padx=2)
+
+        # Рядок 3: Підказка / Статус
+        self.sandbox_msg = tk.Label(
+            sandbox_card, text="💡 Підказка: натисни в зразку Ctrl+C, потім натисни в полі вставки Ctrl+V",
+            font=("Segoe UI", 9, "bold"), bg="#F8FAFC", fg="#475569"
+        )
+        self.sandbox_msg.pack(anchor="center", pady=(4, 2))
+
+        # Перехоплення комбінацій Ctrl+C, Ctrl+V, Ctrl+A, Ctrl+X в полях незалежно від розкладки
+        def handle_entry_shortcuts(event, widget):
+            is_ctrl = self.ctrl_held or bool(event.state & 0x0004) or (event.keysym in ("Control_L", "Control_R"))
+            # Ctrl + C
+            if is_ctrl and (event.keycode == 67 or event.char == '\x03' or event.keysym.lower() in ('c', 'ukrainian_es', 'cyrillic_es', 'с')):
+                copy_action()
+                return "break"
+            # Ctrl + V
+            elif is_ctrl and (event.keycode == 86 or event.char == '\x16' or event.keysym.lower() in ('v', 'ukrainian_em', 'cyrillic_em', 'м')):
+                paste_action()
+                return "break"
+            # Ctrl + A
+            elif is_ctrl and (event.keycode == 65 or event.char == '\x01' or event.keysym.lower() in ('a', 'ukrainian_ef', 'cyrillic_ef', 'ф')):
+                widget.select_range(0, tk.END)
+                return "break"
+            # Ctrl + X
+            elif is_ctrl and (event.keycode == 88 or event.char == '\x18' or event.keysym.lower() in ('x', 'ukrainian_che', 'cyrillic_che', 'ч')):
+                try:
+                    sel = widget.selection_get()
+                    widget.delete(tk.SEL_FIRST, tk.SEL_LAST)
+                    self.clipboard_clear()
+                    self.clipboard_append(sel)
+                    self.flash_key("CTRL", True)
+                    self.flash_key("X", True)
+                    self.sound.play("correct")
+                except Exception:
+                    pass
+                return "break"
+
+        sample_entry.bind("<KeyPress>", lambda e: handle_entry_shortcuts(e, sample_entry))
+        sample_entry.bind("<FocusIn>", lambda e: sample_entry.select_range(0, tk.END))
+        target_entry.bind("<KeyPress>", lambda e: handle_entry_shortcuts(e, target_entry))
+
 
         self.update_hotkey_keyboard_guidance(hk)
 
@@ -1262,6 +1397,8 @@ class KidsKeyboardTrainer(tk.Tk):
         self.highlight_keyboard_keys(self.target_chars)
 
     def render_hotkeys_quiz(self):
+        for w in self.hotkeys_content_area.winfo_children():
+            w.destroy()
         hotkeys_list = HOTKEYS_DATA.get(self.lang, HOTKEYS_DATA["UA"])
         q_item = random.choice(hotkeys_list)
         self.current_quiz_target = q_item
@@ -1290,10 +1427,10 @@ class KidsKeyboardTrainer(tk.Tk):
         colors = ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6"]
         for idx, opt in enumerate(options):
             combo_str = " + ".join(opt["keys"])
-            btn_text = f"{opt['emoji']}  {combo_str}\n({opt['title']})"
+            btn_text = f"{opt['emoji']}  {combo_str}"
             btn = tk.Button(
-                options_frame, text=btn_text, font=("Segoe UI", 10, "bold"),
-                bg=colors[idx % len(colors)], fg="white", width=25, height=3,
+                options_frame, text=btn_text, font=("Segoe UI", 11, "bold"),
+                bg=colors[idx % len(colors)], fg="white", width=30, height=2,
                 relief="flat", cursor="hand2", bd=0,
                 command=lambda chosen=opt: self.check_quiz_answer(chosen, q_item)
             )
@@ -1936,6 +2073,32 @@ class KidsKeyboardTrainer(tk.Tk):
                 self.student_data["stars"] += 2
                 self.student_data["hotkeys_mastered"] += 1
                 self.update_stats_display()
+
+                # Автоматична дія для пісочниці при натисканні гарячої клавіші
+                if hk["id"] == "ctrl_c":
+                    try:
+                        self.clipboard_clear()
+                        self.clipboard_append(hk["sample_text"])
+                        if hasattr(self, "sandbox_msg"):
+                            self.sandbox_msg.configure(
+                                text="📋 Скопійовано в буфер! Тепер перейди в поле вставки і натисни Ctrl + V!",
+                                fg="#16A34A"
+                            )
+                    except Exception:
+                        pass
+                elif hk["id"] == "ctrl_v":
+                    try:
+                        clip_text = self.clipboard_get()
+                        if hasattr(self, "practice_target_entry"):
+                            self.practice_target_entry.delete(0, tk.END)
+                            self.practice_target_entry.insert(0, clip_text)
+                        if hasattr(self, "sandbox_msg"):
+                            self.sandbox_msg.configure(
+                                text="🎉 УРА! Текст успішно вставлено комбінацією Ctrl + V! +2 ⭐",
+                                fg="#16A34A"
+                            )
+                    except Exception:
+                        pass
 
                 self.hk_status_box.configure(bg="#BBF7D0")
                 self.hk_status_label.configure(
