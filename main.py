@@ -419,7 +419,34 @@ CONTENT = {
             "У лісі ростуть смачні грибочки.",
             "Діти весело грають у м'яч у дворі.",
             "Спритні пальчики друкують швидко й легко!",
-            "Книга — це найкращий друг кожної дитини."
+            "Книга - це найкращий друг кожної дитини.",
+            "Хто рано встає, тому Бог дає.",
+            "Мамо, дивись: я вмію друкувати!",
+            "Яке чудове небо сьогодні, правда?",
+            "Сонце, місяць і зорі - це небесні тіла.",
+            "Привіт! Як у тебе справи?",
+            "Учитель сказав: \"Молодець, чудова робота!\"",
+            "На столі лежать ручка, зошит і підручник.",
+            "Влітку (коли тепло) ми їздимо на море.",
+            "Бабуся спекла пиріг; він був дуже смачний.",
+            "Хм... де ж я залишив свій рюкзак?",
+            "У зоопарку живуть леви, тигри та ведмеді.",
+            "Тихо! Не буди маленького братика.",
+            "Петро, Ольга і Марійка - мої друзі.",
+            "Дощ закінчився - можна йти гуляти!",
+            "Скільки буде 5 + 3? Правильно: 8!",
+            "Ура! Ми перемогли у грі (3:0)!",
+            "Чи знаєш ти, що Земля - кругла?",
+            "Лисичка-сестричка жила в лісі.",
+            "Мама попросила: \"Купи хліб, молоко і масло\".",
+            "Не забудь: зарядка, сніданок, школа!",
+            "А ви були колись у Карпатах? Це неймовірно!",
+            "Батько сказав: \"Сьогодні їдемо на риболовлю\".",
+            "У кошику: яблука, груші, сливи та вишні.",
+            "Як гарно... Осінь розмалювала парк!",
+            "Ґудзик відірвався - треба пришити.",
+            "Один, два, три - починаємо гру!",
+            "Де знаходиться Україна? У центрі Європи!"
         ]
     },
     "EN": {
@@ -469,7 +496,16 @@ CONTENT = {
             "A fast rocket flies into space.",
             "The rainbow has seven beautiful colors.",
             "Quick fingers type fast and easily!",
-            "Reading books makes you smart and happy."
+            "Reading books makes you smart and happy.",
+            "Mom said: \"Great job, keep it up!\"",
+            "Do you know where my bag is?",
+            "Apples, oranges, and bananas - yummy fruits!",
+            "Wow... that was an amazing trick!",
+            "The dog (a golden retriever) loves to play.",
+            "Ready, set, go - the race has started!",
+            "How much is 7 + 5? The answer: 12!",
+            "Be quiet; the baby is sleeping.",
+            "Hello! How are you today?"
         ]
     }
 }
@@ -1905,12 +1941,26 @@ class KidsKeyboardTrainer(tk.Tk):
         )
         self.sent_feedback.pack(pady=4)
 
+        # Показник швидкості друку
+        speed_frame = tk.Frame(card, bg="#FFFFFF")
+        speed_frame.pack(pady=(2, 6))
+
+        self.sent_speed_label = tk.Label(
+            speed_frame, text="⚡ Швидкість: - сим/хв",
+            font=("Segoe UI", 11, "bold"), bg="#F0FDF4", fg="#166534",
+            padx=12, pady=3, relief="solid", bd=1
+        )
+        self.sent_speed_label.pack()
+
+        self.sentence_start_time = None
+
         self.next_sentence()
 
     def next_sentence(self):
         sentences = CONTENT[self.lang]["sentences"]
         self.target_sentence = random.choice(sentences)
         self.sentence_index = 0
+        self.sentence_start_time = None
         self.render_sentence_text()
 
     def render_sentence_text(self):
@@ -1978,8 +2028,34 @@ class KidsKeyboardTrainer(tk.Tk):
             self.sound.play("complete")
             self.student_data["stars"] += 5
             self.update_stats_display()
-            self.sent_feedback.configure(text="🎉 Чудово! Речення завершено! +5 ⭐", fg="#16A34A")
-            self.after(1200, self.next_sentence)
+
+            # Розрахунок швидкості друку
+            speed_text = ""
+            if self.sentence_start_time:
+                import time as _time
+                elapsed = _time.time() - self.sentence_start_time
+                if elapsed > 0.5:
+                    chars_per_min = int(len(self.target_sentence) / elapsed * 60)
+                    speed_text = f"  |  ⚡ {chars_per_min} сим/хв"
+                    if hasattr(self, "sent_speed_label"):
+                        # Кольорова оцінка швидкості
+                        if chars_per_min >= 200:
+                            spd_color, spd_bg, spd_emoji = "#166534", "#F0FDF4", "🚀"
+                        elif chars_per_min >= 120:
+                            spd_color, spd_bg, spd_emoji = "#0369A1", "#E0F2FE", "⚡"
+                        elif chars_per_min >= 60:
+                            spd_color, spd_bg, spd_emoji = "#92400E", "#FEF3C7", "🐇"
+                        else:
+                            spd_color, spd_bg, spd_emoji = "#64748B", "#F1F5F9", "🐢"
+                        self.sent_speed_label.configure(
+                            text=f"{spd_emoji} Швидкість: {chars_per_min} сим/хв",
+                            fg=spd_color, bg=spd_bg
+                        )
+
+            self.sent_feedback.configure(
+                text=f"🎉 Чудово! Речення завершено! +5 ⭐{speed_text}", fg="#16A34A"
+            )
+            self.after(1800, self.next_sentence)
 
     # --- ВІЗУАЛЬНА ІНТЕРАКТИВНА КЛАВІАТУРА ---
     def draw_keyboard(self):
@@ -2514,6 +2590,11 @@ class KidsKeyboardTrainer(tk.Tk):
     def process_sentences_input(self, typed):
         if self.sentence_index >= len(self.target_sentence):
             return
+
+        # Запуск таймера при першому натисканні
+        if self.sentence_start_time is None:
+            import time as _time
+            self.sentence_start_time = _time.time()
 
         expected = self.target_sentence[self.sentence_index]
         if typed == expected:
