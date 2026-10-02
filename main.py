@@ -1699,6 +1699,33 @@ class KidsKeyboardTrainer(tk.Tk):
         )
         self.arcade_btn.pack(side="right", padx=10)
 
+        # Вибір складності з прикольними назвами
+        self.arcade_difficulties = {
+            "easy":   {"label": "🐢 Равлик",    "speed": (0.7, 1.3), "spawn": (2400, 3200), "lives": 5, "bg": "#10B981"},
+            "medium": {"label": "🐇 Зайчик",   "speed": (1.1, 2.0), "spawn": (1800, 2600), "lives": 3, "bg": "#F59E0B"},
+            "hard":   {"label": "🚀 Блискавка", "speed": (1.8, 3.0), "spawn": (1000, 1600), "lives": 2, "bg": "#EF4444"},
+        }
+        self.arcade_difficulty = "medium"
+
+        diff_frame = tk.Frame(card, bg="#1E293B")
+        diff_frame.pack(fill="x", padx=10, pady=(0, 4))
+
+        tk.Label(
+            diff_frame, text="Складність:", font=("Segoe UI", 10, "bold"),
+            bg="#1E293B", fg="#94A3B8"
+        ).pack(side="left", padx=(10, 6))
+
+        self.arcade_diff_btns = {}
+        for diff_id, diff in self.arcade_difficulties.items():
+            btn = tk.Button(
+                diff_frame, text=diff["label"], font=("Segoe UI", 9, "bold"),
+                bg=diff["bg"] if diff_id == self.arcade_difficulty else "#334155",
+                fg="white", relief="flat", padx=10, pady=2, cursor="hand2",
+                command=lambda d=diff_id: self.set_arcade_difficulty(d)
+            )
+            btn.pack(side="left", padx=4)
+            self.arcade_diff_btns[diff_id] = btn
+
         self.arcade_canvas = tk.Canvas(card, bg="#0B132B", bd=0, highlightthickness=0)
         self.arcade_canvas.pack(fill="both", expand=True, padx=5, pady=5)
 
@@ -1707,16 +1734,28 @@ class KidsKeyboardTrainer(tk.Tk):
         self.arcade_score = 0
         self.arcade_lives = 3
 
+    def set_arcade_difficulty(self, diff_id):
+        if self.arcade_running:
+            return
+        self.arcade_difficulty = diff_id
+        for d_id, btn in self.arcade_diff_btns.items():
+            if d_id == diff_id:
+                btn.configure(bg=self.arcade_difficulties[d_id]["bg"])
+            else:
+                btn.configure(bg="#334155")
+
     def toggle_arcade(self):
         if not self.arcade_running:
             self.arcade_running = True
             self.arcade_score = 0
-            self.arcade_lives = 3
+            diff = self.arcade_difficulties[self.arcade_difficulty]
+            self.arcade_lives = diff["lives"]
             self.arcade_items.clear()
             self.arcade_canvas.delete("all")
             self.arcade_btn.configure(text="⏸️ Пауза", bg="#EF4444")
             self.arcade_score_lbl.configure(text="Бали: 0")
-            self.arcade_lives_lbl.configure(text="Життя: ❤️❤️❤️")
+            lives_text = "❤️" * self.arcade_lives
+            self.arcade_lives_lbl.configure(text=f"Життя: {lives_text}")
             self.spawn_arcade_char()
             self.arcade_loop()
         else:
@@ -1752,7 +1791,7 @@ class KidsKeyboardTrainer(tk.Tk):
             "is_upper": is_upper,
             "x": x,
             "y": -24,
-            "speed": random.uniform(1.1, 2.0),
+            "speed": random.uniform(*self.arcade_difficulties[self.arcade_difficulty]["speed"]),
             "tag": tag,
             "circle_id": circle_id,
             "text_id": text_id
@@ -1760,7 +1799,8 @@ class KidsKeyboardTrainer(tk.Tk):
         self.arcade_items.append(item)
 
         if self.arcade_running:
-            self.after(random.randint(1800, 2600), self.spawn_arcade_char)
+            spawn_range = self.arcade_difficulties[self.arcade_difficulty]["spawn"]
+            self.after(random.randint(*spawn_range), self.spawn_arcade_char)
 
     def arcade_loop(self):
         if not self.arcade_running:
@@ -1783,7 +1823,8 @@ class KidsKeyboardTrainer(tk.Tk):
                 self.arcade_canvas.delete(item["tag"])
                 self.arcade_lives -= 1
                 self.sound.play("wrong")
-                lives_text = "❤️" * max(0, self.arcade_lives) + "🖤" * (3 - max(0, self.arcade_lives))
+                lives_max = self.arcade_difficulties[self.arcade_difficulty]["lives"]
+                lives_text = "❤️" * max(0, self.arcade_lives) + "🖤" * (lives_max - max(0, self.arcade_lives))
                 self.arcade_lives_lbl.configure(text=f"Життя: {lives_text}")
                 if self.arcade_lives <= 0:
                     self.end_arcade_game()
