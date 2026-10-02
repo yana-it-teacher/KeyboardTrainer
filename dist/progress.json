@@ -33,16 +33,16 @@
     },
     "Новий юзер": {
       "avatar": "🚀",
-      "stars": 179,
-      "score": 2080,
-      "total_typed": 371,
-      "correct_typed": 202,
+      "stars": 222,
+      "score": 2456,
+      "total_typed": 425,
+      "correct_typed": 236,
       "best_arcade_score": 545,
-      "words_typed": 12,
-      "hotkeys_mastered": 13,
+      "words_typed": 14,
+      "hotkeys_mastered": 21,
       "achievements": []
     }
   },
   "last_student": "Новий юзер",
-  "sound_enabled": false
+  "sound_enabled": true
 }

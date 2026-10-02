@@ -1346,19 +1346,25 @@ class KidsKeyboardTrainer(tk.Tk):
 
             def on_undo_redo(event):
                 is_ctrl = self.ctrl_held or bool(event.state & 0x0004)
-                if hk_id == "ctrl_z" and is_ctrl and (event.keycode == 90 or event.keysym.lower() in ('z', 'я')):
+                if is_ctrl and (event.keycode == 90 or event.keysym.lower() in ('z', 'я')):
                     try:
                         test_text.edit_undo()
-                        self.sandbox_msg.configure(text="↩️ Скасовано! Ctrl+Z працює!", fg="#16A34A")
-                        self.sound.play("correct")
+                        if hk_id == "ctrl_z":
+                            self.sandbox_msg.configure(text="↩️ Скасовано! Ctrl+Z працює!", fg="#16A34A")
+                            self.sound.play("correct")
+                        else:
+                            self.sandbox_msg.configure(text="↩️ Скасовано! Тепер натисни Ctrl+Y для повторення!", fg="#2563EB")
                     except tk.TclError:
                         self.sandbox_msg.configure(text="Немає що скасовувати. Спочатку зміни текст!", fg="#B45309")
                     return "break"
-                elif hk_id == "ctrl_y" and is_ctrl and (event.keycode == 89 or event.keysym.lower() in ('y', 'н')):
+                elif is_ctrl and (event.keycode == 89 or event.keysym.lower() in ('y', 'н')):
                     try:
                         test_text.edit_redo()
-                        self.sandbox_msg.configure(text="🔁 Повторено! Ctrl+Y працює!", fg="#16A34A")
-                        self.sound.play("correct")
+                        if hk_id == "ctrl_y":
+                            self.sandbox_msg.configure(text="🔁 Повторено! Ctrl+Y працює!", fg="#16A34A")
+                            self.sound.play("correct")
+                        else:
+                            self.sandbox_msg.configure(text="🔁 Повторено дію!", fg="#16A34A")
                     except tk.TclError:
                         self.sandbox_msg.configure(text="Немає що повторювати. Спочатку скасуй дію (Ctrl+Z)!", fg="#B45309")
                     return "break"
