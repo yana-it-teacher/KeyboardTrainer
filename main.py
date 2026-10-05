@@ -268,7 +268,7 @@ class DatabaseManager:
             del self.data["students"][name]
 
     def get_teacher_password(self):
-        """Отримати пароль вчителя (за замовчуванням '1234')."""
+        """Отримати пароль вчителя"""
         c = self.conn.cursor()
         c.execute("SELECT value FROM settings WHERE key = 'teacher_password'")
         row = c.fetchone()
@@ -2949,13 +2949,6 @@ class KidsKeyboardTrainer(tk.Tk):
 
         populate_table()
 
-        # Підказка внизу таблиці
-        hint_lbl = tk.Label(
-            win, text="💡 Оберіть учня в таблиці для перегляду або видалення (доступно вчителю).",
-            font=("Segoe UI", 9), fg="#64748B"
-        )
-        hint_lbl.pack(pady=(4, 2))
-
         # Панель кнопок дій
         btn_frame = tk.Frame(win)
         btn_frame.pack(fill="x", padx=15, pady=(4, 10))
@@ -2976,7 +2969,7 @@ class KidsKeyboardTrainer(tk.Tk):
 
             # Діалог перевірки пароля вчителя
             pw_win = tk.Toplevel(win)
-            pw_win.title("🔒 Пароль вчителя")
+            pw_win.title("🔒 Пароль")
             pw_win.geometry("360x220")
             pw_win.resizable(False, False)
             pw_win.grab_set()
@@ -2987,7 +2980,7 @@ class KidsKeyboardTrainer(tk.Tk):
             ).pack(pady=(12, 4))
 
             tk.Label(
-                pw_win, text="Введіть пароль вчителя:\n(за замовчуванням: 1234)",
+                pw_win, text="Введіть пароль:",
                 font=("Segoe UI", 9), fg="#475569"
             ).pack(pady=(0, 6))
 
@@ -3023,7 +3016,7 @@ class KidsKeyboardTrainer(tk.Tk):
                         populate_table()
                         messagebox.showinfo("Успіх", f"Учня «{target_name}» успішно видалено!", parent=win)
                 else:
-                    messagebox.showerror("Помилка", "Невірний пароль вчителя! Спробуйте ще раз.", parent=pw_win)
+                    messagebox.showerror("Помилка", "Невірний пароль! Спробуйте ще раз.", parent=pw_win)
                     pw_entry.delete(0, tk.END)
 
             pw_btn_frame = tk.Frame(pw_win)
@@ -3045,13 +3038,13 @@ class KidsKeyboardTrainer(tk.Tk):
 
         def change_teacher_pw_dialog():
             cpw_win = tk.Toplevel(win)
-            cpw_win.title("🔑 Зміна пароля вчителя")
+            cpw_win.title("🔑 Зміна пароля")
             cpw_win.geometry("360x260")
             cpw_win.resizable(False, False)
             cpw_win.grab_set()
 
             tk.Label(
-                cpw_win, text="Зміна пароля вчителя",
+                cpw_win, text="Зміна пароля",
                 font=("Segoe UI", 11, "bold"), fg="#1E293B"
             ).pack(pady=(10, 8))
 
@@ -3075,7 +3068,7 @@ class KidsKeyboardTrainer(tk.Tk):
                     return
                 self.progress.set_teacher_password(new_val)
                 cpw_win.destroy()
-                messagebox.showinfo("Успіх", "Пароль вчителя успішно оновлено!", parent=win)
+                messagebox.showinfo("Успіх", "Пароль успішно оновлено!", parent=win)
 
             btn_box = tk.Frame(cpw_win)
             btn_box.pack(pady=12)
@@ -3096,13 +3089,13 @@ class KidsKeyboardTrainer(tk.Tk):
 
         # Кнопки внизу вікна
         tk.Button(
-            btn_frame, text="🗑️ Видалити учня (пароль вчителя)", font=("Segoe UI", 9, "bold"),
+            btn_frame, text="🗑️ Видалити учня", font=("Segoe UI", 9, "bold"),
             bg="#EF4444", fg="white", relief="flat", padx=12, pady=5, cursor="hand2",
             command=delete_selected_student
         ).pack(side="left", padx=(0, 6))
 
         tk.Button(
-            btn_frame, text="🔑 Змінити пароль вчителя", font=("Segoe UI", 9),
+            btn_frame, text="🔑 Змінити пароль", font=("Segoe UI", 9),
             bg="#E2E8F0", fg="#334155", relief="flat", padx=10, pady=5, cursor="hand2",
             command=change_teacher_pw_dialog
         ).pack(side="left", padx=4)
