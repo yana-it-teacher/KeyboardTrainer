@@ -12,10 +12,10 @@
     },
     "Макар": {
       "avatar": "🐶",
-      "stars": 305,
-      "score": 2994,
-      "total_typed": 667,
-      "correct_typed": 519,
+      "stars": 321,
+      "score": 3096,
+      "total_typed": 742,
+      "correct_typed": 593,
       "best_arcade_score": 0,
       "words_typed": 32,
       "achievements": []
@@ -33,16 +33,16 @@
     },
     "Новий юзер": {
       "avatar": "🐱",
-      "stars": 268,
-      "score": 2456,
-      "total_typed": 741,
-      "correct_typed": 529,
+      "stars": 485,
+      "score": 8348,
+      "total_typed": 1163,
+      "correct_typed": 866,
       "best_arcade_score": 545,
-      "words_typed": 17,
-      "hotkeys_mastered": 21,
+      "words_typed": 53,
+      "hotkeys_mastered": 31,
       "achievements": []
     }
   },
-  "last_student": "Новий юзер",
+  "last_student": "Макар",
   "sound_enabled": false
 }

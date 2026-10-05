@@ -10,6 +10,7 @@ import sys
 import os
 import json
 import random
+import sqlite3
 import threading
 import queue
 import tkinter as tk
@@ -36,7 +37,8 @@ def get_base_dir():
     return os.path.dirname(os.path.abspath(__file__))
 
 BASE_DIR = get_base_dir()
-PROGRESS_FILE = os.path.join(BASE_DIR, "progress.json")
+DB_FILE = os.path.join(BASE_DIR, "keyboard_trainer.db")
+PROGRESS_FILE = os.path.join(BASE_DIR, "progress.json")  # для міграції зі старих версій
 ICON_FILE = os.path.join(BASE_DIR, "icon.ico")
 
 
@@ -83,46 +85,206 @@ class SoundManager:
         return self.enabled
 
 
-# --- Збереження та завантаження прогресу учнів ---
-class ProgressManager:
-    def __init__(self):
-        self.data = self.load()
+# --- База даних учнів (SQLite) ---
+class DatabaseManager:
+    """Менеджер бази даних SQLite для зберігання учнів та налаштувань."""
 
-    def load(self):
-        if os.path.exists(PROGRESS_FILE):
+    def __init__(self):
+        self.conn = sqlite3.connect(DB_FILE)
+        self.conn.row_factory = sqlite3.Row
+        self._create_tables()
+        self._migrate_from_json()
+        # Сумісний інтерфейс (для зворотної сумісності з кодом, що звертається до self.progress.data)
+        self.data = self._load_settings()
+
+    def _create_tables(self):
+        c = self.conn.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                avatar TEXT DEFAULT '🚀',
+                stars INTEGER DEFAULT 0,
+                score INTEGER DEFAULT 0,
+                total_typed INTEGER DEFAULT 0,
+                correct_typed INTEGER DEFAULT 0,
+                best_arcade_score INTEGER DEFAULT 0,
+                words_typed INTEGER DEFAULT 0,
+                hotkeys_mastered INTEGER DEFAULT 0,
+                achievements TEXT DEFAULT '[]',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
+        self.conn.commit()
+
+    def _migrate_from_json(self):
+        """Одноразова міграція даних зі старого progress.json до SQLite."""
+        if not os.path.exists(PROGRESS_FILE):
+            return
+        try:
+            with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
+                old_data = json.load(f)
+        except Exception:
+            return
+
+        c = self.conn.cursor()
+        # Перенос налаштувань
+        if "sound_enabled" in old_data:
+            c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+                      ("sound_enabled", json.dumps(old_data["sound_enabled"])))
+        if "last_student" in old_data:
+            c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                      ("last_student", old_data["last_student"]))
+
+        # Перенос учнів
+        for name, info in old_data.get("students", {}).items():
             try:
-                with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                c.execute("""
+                    INSERT OR IGNORE INTO users (name, avatar, stars, score, total_typed,
+                        correct_typed, best_arcade_score, words_typed, hotkeys_mastered, achievements)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    name,
+                    info.get("avatar", "🚀"),
+                    info.get("stars", 0),
+                    info.get("score", 0),
+                    info.get("total_typed", 0),
+                    info.get("correct_typed", 0),
+                    info.get("best_arcade_score", 0),
+                    info.get("words_typed", 0),
+                    info.get("hotkeys_mastered", 0),
+                    json.dumps(info.get("achievements", []))
+                ))
             except Exception:
                 pass
-        return {
-            "students": {},
-            "last_student": "Юний Чемпіон",
-            "sound_enabled": True
-        }
+        self.conn.commit()
 
-    def save(self):
+        # Перейменувати старий файл, щоб не мігрувати повторно
         try:
-            with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
-                json.dump(self.data, f, ensure_ascii=False, indent=2)
+            os.rename(PROGRESS_FILE, PROGRESS_FILE + ".bak")
         except Exception:
             pass
 
+    def _load_settings(self):
+        """Завантажити налаштування у словник data для зворотної сумісності."""
+        c = self.conn.cursor()
+        settings = {}
+        for row in c.execute("SELECT key, value FROM settings"):
+            try:
+                settings[row["key"]] = json.loads(row["value"])
+            except (json.JSONDecodeError, TypeError):
+                settings[row["key"]] = row["value"]
+        # Побудувати students з бази
+        settings["students"] = {}
+        for row in c.execute("SELECT * FROM users ORDER BY stars DESC"):
+            settings["students"][row["name"]] = dict(row)
+        if "last_student" not in settings:
+            settings["last_student"] = "Юний Чемпіон"
+        if "sound_enabled" not in settings:
+            settings["sound_enabled"] = True
+        return settings
+
     def get_student(self, name, avatar="🚀"):
-        if name not in self.data["students"]:
-            self.data["students"][name] = {
-                "avatar": avatar,
-                "stars": 0,
-                "score": 0,
-                "total_typed": 0,
-                "correct_typed": 0,
-                "best_arcade_score": 0,
-                "words_typed": 0,
-                "hotkeys_mastered": 0,
-                "achievements": []
-            }
-            self.save()
-        return self.data["students"][name]
+        """Отримати або створити учня. Повертає словник з даними."""
+        c = self.conn.cursor()
+        c.execute("SELECT * FROM users WHERE name = ?", (name,))
+        row = c.fetchone()
+        if row is None:
+            c.execute("INSERT INTO users (name, avatar) VALUES (?, ?)", (name, avatar))
+            self.conn.commit()
+            c.execute("SELECT * FROM users WHERE name = ?", (name,))
+            row = c.fetchone()
+        result = dict(row)
+        try:
+            result["achievements"] = json.loads(result.get("achievements", "[]"))
+        except Exception:
+            result["achievements"] = []
+        # Оновити data["students"]
+        self.data["students"][name] = result
+        return result
+
+    def save_student(self, name, data):
+        """Зберегти оновлені дані учня в базу."""
+        c = self.conn.cursor()
+        c.execute("""
+            UPDATE users SET
+                avatar = ?, stars = ?, score = ?, total_typed = ?,
+                correct_typed = ?, best_arcade_score = ?, words_typed = ?,
+                hotkeys_mastered = ?, achievements = ?, last_active = CURRENT_TIMESTAMP
+            WHERE name = ?
+        """, (
+            data.get("avatar", "🚀"),
+            data.get("stars", 0),
+            data.get("score", 0),
+            data.get("total_typed", 0),
+            data.get("correct_typed", 0),
+            data.get("best_arcade_score", 0),
+            data.get("words_typed", 0),
+            data.get("hotkeys_mastered", 0),
+            json.dumps(data.get("achievements", [])),
+            name
+        ))
+        self.conn.commit()
+
+    def save(self):
+        """Зберегти поточного учня і налаштування. Зворотна сумісність з progress.save()."""
+        # Зберегти налаштування
+        c = self.conn.cursor()
+        for key in ("last_student", "sound_enabled"):
+            if key in self.data:
+                c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                          (key, json.dumps(self.data[key])))
+        # Зберегти всіх учнів з data["students"]
+        for name, info in self.data.get("students", {}).items():
+            self.save_student(name, info)
+        self.conn.commit()
+
+    def get_all_students(self):
+        """Отримати список усіх учнів відсортованих за зірочками."""
+        c = self.conn.cursor()
+        students = []
+        for row in c.execute("SELECT * FROM users ORDER BY stars DESC"):
+            s = dict(row)
+            try:
+                s["achievements"] = json.loads(s.get("achievements", "[]"))
+            except Exception:
+                s["achievements"] = []
+            students.append(s)
+        return students
+
+    def delete_student(self, name):
+        """Видалити учня з бази."""
+        c = self.conn.cursor()
+        c.execute("DELETE FROM users WHERE name = ?", (name,))
+        self.conn.commit()
+        if name in self.data.get("students", {}):
+            del self.data["students"][name]
+
+    def get_teacher_password(self):
+        """Отримати пароль вчителя (за замовчуванням '1234')."""
+        c = self.conn.cursor()
+        c.execute("SELECT value FROM settings WHERE key = 'teacher_password'")
+        row = c.fetchone()
+        if row:
+            try:
+                return json.loads(row["value"])
+            except Exception:
+                return str(row["value"])
+        return "1234"
+
+    def set_teacher_password(self, new_pw):
+        """Зберегти новий пароль вчителя."""
+        c = self.conn.cursor()
+        c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('teacher_password', ?)",
+                  (json.dumps(str(new_pw)),))
+        self.conn.commit()
 
 
 # --- Словники, навчальні набори та каталог гарячих клавіш ---
@@ -607,7 +769,7 @@ class KidsKeyboardTrainer(tk.Tk):
 
         # Менеджери
         self.sound = SoundManager()
-        self.progress = ProgressManager()
+        self.progress = DatabaseManager()
 
         # Поточний стан
         self.lang = "UA"  # "UA" або "EN"
@@ -2726,50 +2888,230 @@ class KidsKeyboardTrainer(tk.Tk):
 
     def show_records_window(self):
         win = tk.Toplevel(self)
-        win.title("🏆 Таблиця досягнень")
-        win.geometry("520x400")
-        win.resizable(False, False)
+        win.title("🏆 Таблиця досягнень учнів")
+        win.geometry("820x520")
+        win.resizable(True, True)
+        win.minsize(650, 380)
 
         tk.Label(
             win, text="🌟 Досягнення наших учнів 🌟",
-            font=("Segoe UI", 14, "bold"), fg="#1E293B"
+            font=("Segoe UI", 15, "bold"), fg="#1E293B"
         ).pack(pady=10)
 
         tree_frame = tk.Frame(win)
         tree_frame.pack(fill="both", expand=True, padx=15, pady=5)
 
-        columns = ("name", "stars", "accuracy", "arcade", "hotkeys")
-        tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=8)
+        columns = ("name", "stars", "accuracy", "words", "arcade", "hotkeys", "total", "last_active")
+        tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=12)
         tree.heading("name", text="Учень")
         tree.heading("stars", text="⭐ Зірочки")
         tree.heading("accuracy", text="🎯 Точність")
-        tree.heading("arcade", text="☄️ Рекорд гри")
-        tree.heading("hotkeys", text="⚡ Гарячі клавіші")
+        tree.heading("words", text="📝 Слів")
+        tree.heading("arcade", text="☄️ Аркада")
+        tree.heading("hotkeys", text="⚡ Клавіші")
+        tree.heading("total", text="⌨️ Натискань")
+        tree.heading("last_active", text="🕐 Остання активність")
 
-        tree.column("name", width=130)
-        tree.column("stars", width=70, anchor="center")
-        tree.column("accuracy", width=75, anchor="center")
-        tree.column("arcade", width=85, anchor="center")
-        tree.column("hotkeys", width=95, anchor="center")
+        tree.column("name", width=140, minwidth=100)
+        tree.column("stars", width=75, anchor="center", minwidth=60)
+        tree.column("accuracy", width=75, anchor="center", minwidth=60)
+        tree.column("words", width=60, anchor="center", minwidth=50)
+        tree.column("arcade", width=70, anchor="center", minwidth=55)
+        tree.column("hotkeys", width=70, anchor="center", minwidth=55)
+        tree.column("total", width=85, anchor="center", minwidth=65)
+        tree.column("last_active", width=140, anchor="center", minwidth=100)
 
-        students = self.progress.data.get("students", {})
-        for s_name, s_info in students.items():
-            tot = s_info.get("total_typed", 0)
-            cor = s_info.get("correct_typed", 0)
-            acc = f"{int(cor / tot * 100)}%" if tot > 0 else "100%"
-            stars = s_info.get("stars", 0)
-            arc = s_info.get("best_arcade_score", 0)
-            hk = s_info.get("hotkeys_mastered", 0)
-            av = s_info.get("avatar", "🚀")
-            tree.insert("", "end", values=(f"{av} {s_name}", stars, acc, arc, f"{hk} шт"))
+        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+        tree.pack(side="left", fill="both", expand=True)
 
-        tree.pack(fill="both", expand=True)
+        item_user_map = {}
+
+        def populate_table():
+            item_user_map.clear()
+            for item in tree.get_children():
+                tree.delete(item)
+            students = self.progress.get_all_students()
+            for s_info in students:
+                s_name = s_info.get("name", "?")
+                tot = s_info.get("total_typed", 0)
+                cor = s_info.get("correct_typed", 0)
+                acc = f"{int(cor / tot * 100)}%" if tot > 0 else "100%"
+                stars = s_info.get("stars", 0)
+                words = s_info.get("words_typed", 0)
+                arc = s_info.get("best_arcade_score", 0)
+                hk = s_info.get("hotkeys_mastered", 0)
+                av = s_info.get("avatar", "🚀")
+                last = str(s_info.get("last_active", ""))[:16].replace("T", " ") if s_info.get("last_active") else "-"
+                row_id = tree.insert("", "end", values=(f"{av} {s_name}", stars, acc, words, arc, hk, tot, last))
+                item_user_map[row_id] = s_name
+
+        populate_table()
+
+        # Підказка внизу таблиці
+        hint_lbl = tk.Label(
+            win, text="💡 Оберіть учня в таблиці для перегляду або видалення (доступно вчителю).",
+            font=("Segoe UI", 9), fg="#64748B"
+        )
+        hint_lbl.pack(pady=(4, 2))
+
+        # Панель кнопок дій
+        btn_frame = tk.Frame(win)
+        btn_frame.pack(fill="x", padx=15, pady=(4, 10))
+
+        def delete_selected_student():
+            selected = tree.selection()
+            if not selected:
+                messagebox.showwarning(
+                    "Вибір учня",
+                    "Будь ласка, оберіть учня у таблиці зі списку для видалення.",
+                    parent=win
+                )
+                return
+
+            target_name = item_user_map.get(selected[0])
+            if not target_name:
+                return
+
+            # Діалог перевірки пароля вчителя
+            pw_win = tk.Toplevel(win)
+            pw_win.title("🔒 Пароль вчителя")
+            pw_win.geometry("360x220")
+            pw_win.resizable(False, False)
+            pw_win.grab_set()
+
+            tk.Label(
+                pw_win, text=f"Видалення учня «{target_name}»",
+                font=("Segoe UI", 11, "bold"), fg="#DC2626"
+            ).pack(pady=(12, 4))
+
+            tk.Label(
+                pw_win, text="Введіть пароль вчителя:\n(за замовчуванням: 1234)",
+                font=("Segoe UI", 9), fg="#475569"
+            ).pack(pady=(0, 6))
+
+            pw_entry = tk.Entry(pw_win, show="•", font=("Segoe UI", 12), justify="center")
+            pw_entry.pack(pady=6, padx=30, fill="x")
+            pw_entry.focus_set()
+
+            def confirm_pw():
+                entered = pw_entry.get().strip()
+                real_pw = self.progress.get_teacher_password()
+                if entered == real_pw:
+                    pw_win.destroy()
+                    confirm = messagebox.askyesno(
+                        "Підтвердження видалення",
+                        f"Ви дійсно бажаєте остаточно видалити учня «{target_name}» та всю історію його успіхів?",
+                        parent=win
+                    )
+                    if confirm:
+                        self.progress.delete_student(target_name)
+
+                        # Якщо видалили поточного активного учня — перемикаємо на іншого або за замовчуванням
+                        if self.current_student_name == target_name:
+                            remaining = self.progress.get_all_students()
+                            new_name = remaining[0]["name"] if remaining else "Юний Чемпіон"
+                            self.current_student_name = new_name
+                            self.progress.data["last_student"] = new_name
+                            self.student_data = self.progress.get_student(new_name, self.current_avatar)
+                            self.name_label.configure(text=new_name)
+                            self.avatar_btn.configure(text=self.student_data.get("avatar", "🚀"))
+                            self.update_stats_display()
+                            self.progress.save()
+
+                        populate_table()
+                        messagebox.showinfo("Успіх", f"Учня «{target_name}» успішно видалено!", parent=win)
+                else:
+                    messagebox.showerror("Помилка", "Невірний пароль вчителя! Спробуйте ще раз.", parent=pw_win)
+                    pw_entry.delete(0, tk.END)
+
+            pw_btn_frame = tk.Frame(pw_win)
+            pw_btn_frame.pack(pady=12)
+
+            tk.Button(
+                pw_btn_frame, text="✅ Підтвердити", font=("Segoe UI", 9, "bold"),
+                bg="#DC2626", fg="white", relief="flat", padx=12, pady=4, cursor="hand2",
+                command=confirm_pw
+            ).pack(side="left", padx=5)
+
+            tk.Button(
+                pw_btn_frame, text="Скасувати", font=("Segoe UI", 9),
+                bg="#94A3B8", fg="white", relief="flat", padx=10, pady=4, cursor="hand2",
+                command=pw_win.destroy
+            ).pack(side="left", padx=5)
+
+            pw_entry.bind("<Return>", lambda e: confirm_pw())
+
+        def change_teacher_pw_dialog():
+            cpw_win = tk.Toplevel(win)
+            cpw_win.title("🔑 Зміна пароля вчителя")
+            cpw_win.geometry("360x260")
+            cpw_win.resizable(False, False)
+            cpw_win.grab_set()
+
+            tk.Label(
+                cpw_win, text="Зміна пароля вчителя",
+                font=("Segoe UI", 11, "bold"), fg="#1E293B"
+            ).pack(pady=(10, 8))
+
+            tk.Label(cpw_win, text="Поточний пароль:", font=("Segoe UI", 9)).pack(anchor="w", padx=30)
+            old_entry = tk.Entry(cpw_win, show="•", font=("Segoe UI", 10))
+            old_entry.pack(fill="x", padx=30, pady=(2, 6))
+            old_entry.focus_set()
+
+            tk.Label(cpw_win, text="Новий пароль:", font=("Segoe UI", 9)).pack(anchor="w", padx=30)
+            new_entry = tk.Entry(cpw_win, show="•", font=("Segoe UI", 10))
+            new_entry.pack(fill="x", padx=30, pady=(2, 6))
+
+            def save_new_pw():
+                old_val = old_entry.get().strip()
+                new_val = new_entry.get().strip()
+                if old_val != self.progress.get_teacher_password():
+                    messagebox.showerror("Помилка", "Невірний поточний пароль!", parent=cpw_win)
+                    return
+                if not new_val:
+                    messagebox.showwarning("Попередження", "Пароль не може бути порожнім!", parent=cpw_win)
+                    return
+                self.progress.set_teacher_password(new_val)
+                cpw_win.destroy()
+                messagebox.showinfo("Успіх", "Пароль вчителя успішно оновлено!", parent=win)
+
+            btn_box = tk.Frame(cpw_win)
+            btn_box.pack(pady=12)
+
+            tk.Button(
+                btn_box, text="Зберегти", font=("Segoe UI", 9, "bold"),
+                bg="#2563EB", fg="white", relief="flat", padx=12, pady=4, cursor="hand2",
+                command=save_new_pw
+            ).pack(side="left", padx=5)
+
+            tk.Button(
+                btn_box, text="Скасувати", font=("Segoe UI", 9),
+                bg="#94A3B8", fg="white", relief="flat", padx=10, pady=4, cursor="hand2",
+                command=cpw_win.destroy
+            ).pack(side="left", padx=5)
+
+            new_entry.bind("<Return>", lambda e: save_new_pw())
+
+        # Кнопки внизу вікна
+        tk.Button(
+            btn_frame, text="🗑️ Видалити учня (пароль вчителя)", font=("Segoe UI", 9, "bold"),
+            bg="#EF4444", fg="white", relief="flat", padx=12, pady=5, cursor="hand2",
+            command=delete_selected_student
+        ).pack(side="left", padx=(0, 6))
 
         tk.Button(
-            win, text="Закрити", font=("Segoe UI", 10, "bold"),
-            bg="#64748B", fg="white", relief="flat", padx=15, pady=4,
+            btn_frame, text="🔑 Змінити пароль вчителя", font=("Segoe UI", 9),
+            bg="#E2E8F0", fg="#334155", relief="flat", padx=10, pady=5, cursor="hand2",
+            command=change_teacher_pw_dialog
+        ).pack(side="left", padx=4)
+
+        tk.Button(
+            btn_frame, text="Закрити", font=("Segoe UI", 10, "bold"),
+            bg="#64748B", fg="white", relief="flat", padx=15, pady=5, cursor="hand2",
             command=win.destroy
-        ).pack(pady=10)
+        ).pack(side="right")
 
 
 if __name__ == "__main__":
