@@ -752,6 +752,134 @@ KEYBOARD_LAYOUTS = {
     ]
 }
 
+# Довідник правильного введення та підказок для розділових знаків у режимі речень
+PUNCTUATION_GUIDE = {
+    "UA": {
+        ".": {
+            "keys": ["."],
+            "badge": "🔹 КРАПКА: клавіша [ . ] (без Shift)",
+            "finger": "👉 Правий мізинець на [ . ]"
+        },
+        ",": {
+            "keys": ["SHIFT", ".", ","],
+            "badge": "⭐ КОМА: [ Shift ] + [ . ] (або окрема клавіша [ , ])",
+            "finger": "👉 Лівий мізинець на [Shift] + Правий мізинець на [ . ]"
+        },
+        "!": {
+            "keys": ["SHIFT", "1"],
+            "badge": "⭐ ЗНАК ОКЛИКУ [ ! ]: [ Shift ] + [ 1 ]",
+            "finger": "👉 Правий мізинець на [Shift] + Лівий мізинець на [ 1 ]"
+        },
+        "?": {
+            "keys": ["SHIFT", "7"],
+            "badge": "⭐ ЗНАК ПИТАННЯ [ ? ]: [ Shift ] + [ 7 ]",
+            "finger": "👉 Лівий мізинець на [Shift] + Правий вказівний на [ 7 ]"
+        },
+        ":": {
+            "keys": ["SHIFT", "6"],
+            "badge": "⭐ ДВОКРАПКА [ : ]: [ Shift ] + [ 6 ]",
+            "finger": "👉 Лівий мізинець на [Shift] + Правий вказівний на [ 6 ]"
+        },
+        ";": {
+            "keys": ["SHIFT", "4"],
+            "badge": "⭐ КРАПКА З КОМОЮ [ ; ]: [ Shift ] + [ 4 ]",
+            "finger": "👉 Правий мізинець на [Shift] + Лівий вказівний на [ 4 ]"
+        },
+        '"': {
+            "keys": ["SHIFT", "2"],
+            "badge": '⭐ ЛАПКИ [ " ]: [ Shift ] + [ 2 ]',
+            "finger": "👉 Правий мізинець на [Shift] + Лівий безіменний на [ 2 ]"
+        },
+        "(": {
+            "keys": ["SHIFT", "9"],
+            "badge": "⭐ ДУЖКА [ ( ]: [ Shift ] + [ 9 ]",
+            "finger": "👉 Лівий мізинець на [Shift] + Правий безіменний на [ 9 ]"
+        },
+        ")": {
+            "keys": ["SHIFT", "0"],
+            "badge": "⭐ ДУЖКА [ ) ]: [ Shift ] + [ 0 ]",
+            "finger": "👉 Лівий мізинець на [Shift] + Правий мізинець на [ 0 ]"
+        },
+        "-": {
+            "keys": ["-"],
+            "badge": "🔹 ДЕФІС / ТИРЕ: клавіша [ - ] (без Shift)",
+            "finger": "👉 Правий мізинець на [ - ]"
+        },
+        "+": {
+            "keys": ["SHIFT", "="],
+            "badge": "⭐ ПЛЮС [ + ]: [ Shift ] + [ = ]",
+            "finger": "👉 Лівий мізинець на [Shift] + Правий мізинець на [ = ]"
+        },
+        "'": {
+            "keys": ["'"],
+            "badge": "🔹 АПОСТРОФ: клавіша [ ' ] (без Shift)",
+            "finger": "👉 Лівий мізинець на [ ' ]"
+        }
+    },
+    "EN": {
+        ".": {
+            "keys": ["."],
+            "badge": "🔹 PERIOD: key [ . ] (no Shift)",
+            "finger": "👉 Right Ring finger on [ . ]"
+        },
+        ",": {
+            "keys": [","],
+            "badge": "🔹 COMMA: key [ , ] (no Shift)",
+            "finger": "👉 Right Middle finger on [ , ]"
+        },
+        "!": {
+            "keys": ["SHIFT", "1"],
+            "badge": "⭐ EXCLAMATION [ ! ]: [ Shift ] + [ 1 ]",
+            "finger": "👉 Right Pinky on [Shift] + Left Pinky on [ 1 ]"
+        },
+        "?": {
+            "keys": ["SHIFT", "/"],
+            "badge": "⭐ QUESTION [ ? ]: [ Shift ] + [ / ]",
+            "finger": "👉 Left Pinky on [Shift] + Right Pinky on [ / ]"
+        },
+        ":": {
+            "keys": ["SHIFT", ";"],
+            "badge": "⭐ COLON [ : ]: [ Shift ] + [ ; ]",
+            "finger": "👉 Left Pinky on [Shift] + Right Pinky on [ ; ]"
+        },
+        ";": {
+            "keys": [";"],
+            "badge": "🔹 SEMICOLON [ ; ]: key [ ; ] (no Shift)",
+            "finger": "👉 Right Pinky on [ ; ]"
+        },
+        '"': {
+            "keys": ["SHIFT", "'"],
+            "badge": '⭐ QUOTE [ " ]: [ Shift ] + [ \' ]',
+            "finger": "👉 Left Pinky on [Shift] + Right Pinky on [ ' ]"
+        },
+        "(": {
+            "keys": ["SHIFT", "9"],
+            "badge": "⭐ PARENTHESIS [ ( ]: [ Shift ] + [ 9 ]",
+            "finger": "👉 Left Pinky on [Shift] + Right Ring on [ 9 ]"
+        },
+        ")": {
+            "keys": ["SHIFT", "0"],
+            "badge": "⭐ PARENTHESIS [ ) ]: [ Shift ] + [ 0 ]",
+            "finger": "👉 Left Pinky on [Shift] + Right Pinky on [ 0 ]"
+        },
+        "-": {
+            "keys": ["-"],
+            "badge": "🔹 HYPHEN [ - ]: key [ - ] (no Shift)",
+            "finger": "👉 Right Pinky on [ - ]"
+        },
+        "+": {
+            "keys": ["SHIFT", "="],
+            "badge": "⭐ PLUS [ + ]: [ Shift ] + [ = ]",
+            "finger": "👉 Left Pinky on [Shift] + Right Pinky on [ = ]"
+        },
+        "'": {
+            "keys": ["'"],
+            "badge": "🔹 APOSTROPHE: key [ ' ] (no Shift)",
+            "finger": "👉 Right Pinky on [ ' ]"
+        }
+    }
+}
+
 
 class KidsKeyboardTrainer(tk.Tk):
     def __init__(self):
@@ -2167,11 +2295,30 @@ class KidsKeyboardTrainer(tk.Tk):
                     text="👉 ПРОБІЛ (великий палець)", bg="#F1F5F9", fg="#334155"
                 )
                 self.finger_hint_label.configure(text="👉 Натискай Пробіл", fg="#1E293B")
-            else:
+            elif curr_char in PUNCTUATION_GUIDE.get(self.lang, {}):
+                p_info = PUNCTUATION_GUIDE[self.lang][curr_char]
+                self.target_chars = p_info["keys"]
+                is_shift = "SHIFT" in p_info["keys"]
+                bg_col = "#EDE9FE" if is_shift else "#E0F2FE"
+                fg_col = "#5B21B6" if is_shift else "#0369A1"
+                self.sent_combo_badge.configure(
+                    text=p_info["badge"], bg=bg_col, fg=fg_col
+                )
+                self.finger_hint_label.configure(
+                    text=p_info["finger"], fg="#4338CA" if is_shift else "#0369A1"
+                )
+            elif curr_char.isalpha():
                 self.target_chars = [curr_char.upper()]
                 self.sent_combo_badge.configure(
                     text=f"🔹 Мала літера: просто [ {curr_char} ] (без Shift)",
                     bg="#E0F2FE", fg="#0369A1"
+                )
+                self.update_finger_hint_for_char(curr_char, is_uppercase=False)
+            else:
+                self.target_chars = [curr_char.upper()]
+                self.sent_combo_badge.configure(
+                    text=f"🔹 Символ: [ {curr_char} ]",
+                    bg="#F1F5F9", fg="#334155"
                 )
                 self.update_finger_hint_for_char(curr_char, is_uppercase=False)
 
@@ -2359,7 +2506,7 @@ class KidsKeyboardTrainer(tk.Tk):
         elif sym in ("Super_L", "Super_R", "Win_L", "Win_R"):
             self.win_held = True
 
-        if isinstance(event.widget, (tk.Entry, ttk.Combobox)):
+        if isinstance(event.widget, (tk.Entry, ttk.Combobox, tk.Text)):
             return
 
         typed_raw = event.char
@@ -2721,11 +2868,27 @@ class KidsKeyboardTrainer(tk.Tk):
                     matched_item = item
 
         if not matched_item:
+            # Перевірка на невідповідність регістру (наприклад, натиснуто малу літеру замість великої)
+            case_mismatch = None
             for item in self.arcade_items:
                 if item["char"].lower() == typed.lower():
                     if item["y"] > highest_y:
                         highest_y = item["y"]
-                        matched_item = item
+                        case_mismatch = item
+            if case_mismatch:
+                self.sound.play("wrong")
+                if case_mismatch["is_upper"]:
+                    self.flash_key("SHIFT", False)
+                    self.finger_hint_label.configure(
+                        text=f"⚠️ Для літери '{case_mismatch['char']}' потрібен [Shift]! Затисни [Shift] + [{case_mismatch['char'].lower()}]",
+                        fg="#D97706"
+                    )
+                else:
+                    self.finger_hint_label.configure(
+                        text=f"⚠️ Потрібна мала літера '{case_mismatch['char']}' (без Shift)!",
+                        fg="#D97706"
+                    )
+                return
 
         if matched_item:
             self.sound.play("correct")
@@ -2759,6 +2922,8 @@ class KidsKeyboardTrainer(tk.Tk):
             self.sentence_start_time = _time.time()
 
         expected = self.target_sentence[self.sentence_index]
+        punct_info = PUNCTUATION_GUIDE.get(self.lang, {}).get(expected)
+
         if typed == expected:
             self.session_correct += 1
             self.student_data["correct_typed"] += 1
@@ -2769,9 +2934,12 @@ class KidsKeyboardTrainer(tk.Tk):
                 self.flash_key("CTRL", True)
                 self.flash_key("ALT", True)
                 self.flash_key("Г", True)
+            if punct_info and "SHIFT" in punct_info["keys"]:
+                self.flash_key("SHIFT", True)
+            self.flash_key(expected, True)
             self.sentence_index += 1
             self.render_sentence_text()
-        elif typed.lower() == expected.lower():
+        elif typed.lower() == expected.lower() and expected.isalpha():
             self.sound.play("wrong")
             if expected.lower() == "ґ":
                 if expected.isupper():
@@ -2795,9 +2963,14 @@ class KidsKeyboardTrainer(tk.Tk):
                 )
         else:
             self.sound.play("wrong")
-            self.sent_feedback.configure(
-                text=f"Потрібно: '{expected}', натиснуто: '{typed}'", fg="#DC2626"
-            )
+            if punct_info:
+                self.sent_feedback.configure(
+                    text=f"⚠️ {punct_info['badge']} (натиснуто '{typed}')", fg="#DC2626"
+                )
+            else:
+                self.sent_feedback.configure(
+                    text=f"Потрібно: '{expected}', натиснуто: '{typed}'", fg="#DC2626"
+                )
 
     # --- ДІАЛОГИ ТА НАЛАШТУВАННЯ ---
     def toggle_language(self):
